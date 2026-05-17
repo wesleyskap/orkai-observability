@@ -18,8 +18,10 @@ var globalInstance *GlobalFacade
 
 // Init initializes the global observability facade instance.
 func Init(cfg Config) error {
+	logger := NewJSONLogger(os.Stdout, cfg.ServiceName)
+	logger.SetTraceProvider(GetActiveTraceID)
 	globalInstance = &GlobalFacade{
-		Logger:  NewJSONLogger(os.Stdout, cfg.ServiceName),
+		Logger:  logger,
 		Metrics: NewInMemoryMetrics(cfg.ServiceName),
 		Tracer:  NewLocalTracer(cfg.ServiceName),
 	}
@@ -48,10 +50,9 @@ func Warn(msg string, fields ...Field) {
 }
 
 // Error delegates an error message to the global logger.
-func Error(msg string, err error) {
+func Error(msg string, err error, fields ...Field) {
 	if globalInstance != nil {
-		// Log error to stub logger.
-		_ = err
+		globalInstance.Logger.Error(msg, err, fields...)
 	}
 }
 
