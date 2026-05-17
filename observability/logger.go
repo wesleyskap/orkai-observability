@@ -69,6 +69,7 @@ type JSONLogger struct {
 	writer        io.Writer
 	service       string
 	traceProvider func() string
+	rateLimiter   *LogRateLimiter
 	level         int32
 }
 
@@ -84,6 +85,15 @@ func NewJSONLogger(w io.Writer, service string) *JSONLogger {
 		level:   LevelInfo,
 	}
 	return logger
+}
+
+// SetRateLimiter configures rate limiting on the JSONLogger.
+//
+// Usage example:
+//
+//	logger.SetRateLimiter(limiter)
+func (l *JSONLogger) SetRateLimiter(limiter *LogRateLimiter) {
+	l.rateLimiter = limiter
 }
 
 // SetTraceProvider configures a dynamic trace ID provider for log correlation.
@@ -120,8 +130,7 @@ func (l *JSONLogger) Info(msg string, fields ...Field) {
 	if l.traceProvider != nil {
 		traceID = l.traceProvider()
 	}
-	jsonStr := formatJSON("INFO", l.service, traceID, msg, fields)
-	_, _ = l.writer.Write([]byte(jsonStr))
+	l.writeEntry("INFO", traceID, msg, fields)
 }
 
 // Debug logs a debug-level message.
@@ -137,8 +146,7 @@ func (l *JSONLogger) Debug(msg string, fields ...Field) {
 	if l.traceProvider != nil {
 		traceID = l.traceProvider()
 	}
-	jsonStr := formatJSON("DEBUG", l.service, traceID, msg, fields)
-	_, _ = l.writer.Write([]byte(jsonStr))
+	l.writeEntry("DEBUG", traceID, msg, fields)
 }
 
 // Warn logs a warning message.
@@ -154,8 +162,7 @@ func (l *JSONLogger) Warn(msg string, fields ...Field) {
 	if l.traceProvider != nil {
 		traceID = l.traceProvider()
 	}
-	jsonStr := formatJSON("WARN", l.service, traceID, msg, fields)
-	_, _ = l.writer.Write([]byte(jsonStr))
+	l.writeEntry("WARN", traceID, msg, fields)
 }
 
 // Error logs an error message.
@@ -176,7 +183,21 @@ func (l *JSONLogger) Error(msg string, err error, fields ...Field) {
 	if stack != "" {
 		errFields = append(errFields, NewStringField("stack_trace", stack))
 	}
-	jsonStr := formatJSON("ERROR", l.service, traceID, msg, errFields)
+	l.writeEntry("ERROR", traceID, msg, errFields)
+}
+
+// writeEntry handles rate limiting, sampling flags, serialization, and writer delivery.
+func (l *JSONLogger) writeEntry(level string, traceID string, msg string, fields []Field) {
+	if l.rateLimiter != nil {
+		allow, throttled := l.rateLimiter.Allow()
+		if !allow {
+			return
+		}
+		if throttled {
+			fields = append(fields, NewStringField("log_burst_throttled", "true"))
+		}
+	}
+	jsonStr := formatJSON(level, l.service, traceID, msg, fields)
 	_, _ = l.writer.Write([]byte(jsonStr))
 }
 
@@ -261,8 +282,7 @@ func (l *JSONLogger) InfoContext(ctx context.Context, msg string, fields ...Fiel
 		return
 	}
 	traceID := l.resolveTraceID(ctx)
-	jsonStr := formatJSON("INFO", l.service, traceID, msg, fields)
-	_, _ = l.writer.Write([]byte(jsonStr))
+	l.writeEntry("INFO", traceID, msg, fields)
 }
 
 // WarnContext logs a warning message with context-aware trace correlation.
@@ -271,8 +291,7 @@ func (l *JSONLogger) WarnContext(ctx context.Context, msg string, fields ...Fiel
 		return
 	}
 	traceID := l.resolveTraceID(ctx)
-	jsonStr := formatJSON("WARN", l.service, traceID, msg, fields)
-	_, _ = l.writer.Write([]byte(jsonStr))
+	l.writeEntry("WARN", traceID, msg, fields)
 }
 
 // ErrorContext logs an error message with context-aware trace correlation and stack trace capture.
@@ -286,8 +305,7 @@ func (l *JSONLogger) ErrorContext(ctx context.Context, msg string, err error, fi
 	if stack != "" {
 		errFields = append(errFields, NewStringField("stack_trace", stack))
 	}
-	jsonStr := formatJSON("ERROR", l.service, traceID, msg, errFields)
-	_, _ = l.writer.Write([]byte(jsonStr))
+	l.writeEntry("ERROR", traceID, msg, errFields)
 }
 
 // DebugContext logs a debug message with context-aware trace correlation.
@@ -296,6 +314,5 @@ func (l *JSONLogger) DebugContext(ctx context.Context, msg string, fields ...Fie
 		return
 	}
 	traceID := l.resolveTraceID(ctx)
-	jsonStr := formatJSON("DEBUG", l.service, traceID, msg, fields)
-	_, _ = l.writer.Write([]byte(jsonStr))
+	l.writeEntry("DEBUG", traceID, msg, fields)
 }

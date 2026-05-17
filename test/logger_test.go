@@ -143,3 +143,36 @@ func TestJSONLoggerContextTraceCorrelation(t *testing.T) {
 		t.Fatalf("expected fallback trace ID, got: %s", out2)
 	}
 }
+
+// TestLogRateLimitingDrops asserts that logs exceeding token burst capacity are dropped.
+func TestLogRateLimitingDrops(t *testing.T) {
+	fw := &FakeWriter{}
+	logger := observability.NewJSONLogger(fw, "rate-limit-service")
+	limiter := observability.NewLogRateLimiter(3, 0, true)
+	logger.SetRateLimiter(limiter)
+	for i := 0; i < 5; i++ {
+		logger.Info("spam message")
+	}
+	lines := strings.Split(strings.TrimSpace(fw.Buf.String()), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected exactly 3 logs, got %d. logs: %v", len(lines), lines)
+	}
+}
+
+// TestLogRateLimitingSamples asserts that rate-limited logs are sampled with a throttled attribute.
+func TestLogRateLimitingSamples(t *testing.T) {
+	fw := &FakeWriter{}
+	logger := observability.NewJSONLogger(fw, "rate-limit-service")
+	limiter := observability.NewLogRateLimiter(0, 0, true)
+	logger.SetRateLimiter(limiter)
+	for i := 0; i < 10; i++ {
+		logger.Info("spam message")
+	}
+	sampledLines := strings.Split(strings.TrimSpace(fw.Buf.String()), "\n")
+	if len(sampledLines) != 1 {
+		t.Fatalf("expected exactly 1 sampled log from 10 rate-limited logs, got %d", len(sampledLines))
+	}
+	if !strings.Contains(sampledLines[0], `"log_burst_throttled":"true"`) {
+		t.Errorf("expected sampled log to be marked, got %s", sampledLines[0])
+	}
+}

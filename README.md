@@ -338,6 +338,121 @@ observability.InfoContext(ctx, "processing incoming payment transaction",
 // {"level":"INFO","msg":"processing incoming payment transaction","trace_id":"my-trace-id-123","amount":250}
 ```
 
+### 8. Dynamic Log Rate Limiting & Sampling
+
+Protect central logging infrastructure (Elasticsearch, Loki, Datadog) and container performance during high-throughput failure events. The package utilizes a thread-safe token-bucket rate limiter that drops logs exceeding burst capabilities, falling back to a 10% diagnostic sample marked with `"log_burst_throttled": "true"`:
+
+```go
+// Enable rate limiting with a burst cap of 100 and replenishment rate of 50 logs/second
+cfg := observability.Config{
+	ServiceName:     "payment-gateway",
+	Environment:     "production",
+	LogLevel:        "info",
+	EnableRateLimit: true,
+	RateLimitBurst:  100,
+	RateLimitRate:   50,
+}
+_ = observability.Init(cfg)
+
+// Excessive logging under pressure will automatically trigger rate-limiting,
+// dropping 90% of spam logs while printing 10% for diagnostic samples:
+// {"level":"INFO","msg":"handling order checkout","log_burst_throttled":"true"}
+```
+
+#### Zero-Boilerplate Integration
+
+Because rate limiting is integrated natively inside the global logging engine, downstream services (such as API gateway routers or business logic controllers) do not require **any** modifications. 
+
+Simply configure the limits once at application startup during facade initialization:
+
+```go
+package main
+
+import (
+	"github.com/wesleyskap/orkai-observability/observability"
+)
+
+func main() {
+	// Initialize once during startup
+	cfg := observability.Config{
+		ServiceName:     "auth-service",
+		Environment:     "production",
+		LogLevel:        "info",
+		EnableRateLimit: true,
+		RateLimitBurst:  200, // Maximum burst allowance
+		RateLimitRate:   100, // Token replenishment per second
+	}
+	_ = observability.Init(cfg)
+}
+```
+
+Now, all your existing and future log calls across the entire project (whether standard or context-aware) are automatically protected:
+
+```go
+// This log statement automatically inherits rate-limiting and sampling:
+observability.InfoContext(ctx, "executing SQL transaction", observability.NewStringField("db", "users"))
+```
+
+#### Decision Flow Diagram
+
+```mermaid
+graph TD
+    Start["Log Method Call (Info, Error, etc.)"] --> CheckEnabled{"Rate Limiting Enabled?"}
+    
+    CheckEnabled -- "No" --> EmitNormal["Emit Normal JSON Log Entry"]
+    
+    CheckEnabled -- "Yes" --> CheckTokens{"Tokens Available in Bucket?"}
+    
+    CheckTokens -- "Yes (Tokens >= 1.0)" --> ConsumeToken["Consume 1.0 Token"]
+    ConsumeToken --> EmitNormal
+    
+    CheckTokens -- "No (Empty Bucket)" --> CheckSample{"Is 10th Dropped Log?"}
+    
+    CheckSample -- "Yes (10% Diagnostic Sample)" --> AddThrottleWarning["Append 'log_burst_throttled: true' field"]
+    AddThrottleWarning --> EmitNormal
+    
+    CheckSample -- "No (90% Silent Drop)" --> DropLog["Increment Skipped Counter & Drop Log"]
+```
+
+#### On-Demand Refill & Replenishment Sequence
+
+The `LogRateLimiter` computes elapsed time deltas mathematically during active calls, completely avoiding the overhead of dedicated background tick routines or timers:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as Client Application
+    participant Logger as JSONLogger
+    participant Limiter as LogRateLimiter
+
+    App->>Logger: Info("user login attempt")
+    Logger->>Limiter: Allow()
+    activate Limiter
+    Note over Limiter: Compute elapsed time since last request
+    Note over Limiter: Add (elapsed_seconds * replenishment_rate) to token count (capped at burst)
+    
+    alt Tokens Available (>= 1.0)
+        Note over Limiter: Consume 1 token
+        Limiter-->>Logger: true, false (Allow normal log)
+        Logger->>App: Write standard JSON payload
+    else Bucket Empty (< 1.0)
+        Note over Limiter: Increment skipped counter
+        alt Skipped Count % 10 == 0
+            Limiter-->>Logger: true, true (Allow sampled log)
+            Logger->>App: Write JSON with "log_burst_throttled": "true"
+        else Skipped Count % 10 != 0
+            Limiter-->>Logger: false, false (Drop log)
+            Note over Logger: Silently return (no write operations)
+        end
+    end
+    deactivate Limiter
+```
+
+#### Architectural Highlights
+
+1. **Lock-Free Replenishment Performance:** The internal mathematical time delta calculation completely avoids resource-intensive background goroutines or ticking timers, ensuring near-zero processing overhead under heavy concurrency.
+2. **Intelligent Diagnostic Sampling:** The 10% sampling algorithm ensures that severe infinite logging loops (e.g. rapid database outages) do not choke container CPU resources or saturate centralized log ingestion storage (Elasticsearch, Loki, Datadog), while still preserving critical trace context samples for Grafana dashboards.
+
 ---
 
 ## Running Tests
@@ -370,6 +485,10 @@ $ go test -v ./test/...
 --- PASS: TestLGPDCompliance (0.00s)
 === RUN   TestJSONLoggerContextTraceCorrelation
 --- PASS: TestJSONLoggerContextTraceCorrelation (0.00s)
+=== RUN   TestLogRateLimitingDrops
+--- PASS: TestLogRateLimitingDrops (0.00s)
+=== RUN   TestLogRateLimitingSamples
+--- PASS: TestLogRateLimitingSamples (0.00s)
 === RUN   TestMetricsIncrement
 --- PASS: TestMetricsIncrement (0.00s)
 === RUN   TestMetricsLatency
@@ -377,9 +496,9 @@ $ go test -v ./test/...
 === RUN   TestMetricsGauge
 --- PASS: TestMetricsGauge (0.00s)
 === RUN   TestHTTPMiddlewareNewTrace
-[TRACE] Start /users trace_id=1eca46527b66ae60
-{"level":"INFO","service":"test","trace_id":"1eca46527b66ae60","msg":"incoming request started","method":"POST","path":"/users"}
-{"level":"INFO","service":"test","trace_id":"1eca46527b66ae60","msg":"outgoing request finished","method":"POST","path":"/users","status":201,"duration_ms":0}
+[TRACE] Start /users trace_id=4d61c958dea64c18
+{"level":"INFO","service":"test","trace_id":"4d61c958dea64c18","msg":"incoming request started","method":"POST","path":"/users"}
+{"level":"INFO","service":"test","trace_id":"4d61c958dea64c18","msg":"outgoing request finished","method":"POST","path":"/users","status":201,"duration_ms":0}
 [TRACE] End /users duration=0s
 --- PASS: TestHTTPMiddlewareNewTrace (0.00s)
 === RUN   TestHTTPMiddlewareResumedTrace
@@ -391,7 +510,7 @@ $ go test -v ./test/...
 --- PASS: TestGlobalFacadeInit (0.00s)
 === RUN   TestGlobalFacadeDelegation
 {"level":"INFO","service":"test-service","msg":"delegated log","key":"val"}
-[TRACE] Start test-span trace_id=b58c6e59f1dc6d9f
+[TRACE] Start test-span trace_id=6d20b2f1131c4621
 [TRACE] End test-span duration=0s
 === METRICS ===
 test_count: 1
@@ -411,7 +530,7 @@ test_gauge: 10.5
 === RUN   TestNewIntField
 --- PASS: TestNewIntField (0.00s)
 PASS
-ok  	github.com/wesleyskap/orkai-observability/test	0.700s
+ok  	github.com/wesleyskap/orkai-observability/test	0.721s
 ```
 
 ---

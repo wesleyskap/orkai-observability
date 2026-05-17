@@ -14,9 +14,12 @@ import "errors"
 //		LogLevel:    "info",
 //	}
 type Config struct {
-	ServiceName string
-	Environment string
-	LogLevel    string
+	ServiceName     string
+	Environment     string
+	LogLevel        string
+	EnableRateLimit bool
+	RateLimitBurst  int
+	RateLimitRate   int
 }
 
 // ValidateConfig verifies that the configuration fields are not empty.

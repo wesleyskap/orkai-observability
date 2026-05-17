@@ -33,6 +33,10 @@ func Init(cfg Config) error {
 	logger := NewJSONLogger(os.Stdout, cfg.ServiceName)
 	logger.SetLevel(cfg.LogLevel)
 	logger.SetTraceProvider(GetActiveTraceID)
+	if cfg.EnableRateLimit {
+		limiter := NewLogRateLimiter(cfg.RateLimitBurst, cfg.RateLimitRate, true)
+		logger.SetRateLimiter(limiter)
+	}
 	globalInstance = &GlobalFacade{
 		Logger:  logger,
 		Metrics: NewInMemoryMetrics(cfg.ServiceName),

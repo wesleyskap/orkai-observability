@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.5.0] - 2026-05-17
+
+### Added
+- **Dynamic Log Rate Limiting & Sampling:** Integrated a highly robust, thread-safe token-bucket rate limiter for structured JSON logs. When the configured burst threshold is exceeded, spam logs are capped/dropped to protect upstream log storage (Elasticsearch, Loki, etc.) and save container CPU cycles.
+- **Diagnostic Log Sampling:** Under rate-limited state, the package automatically applies 10% diagnostic sampling, allowing 1 out of every 10 dropped logs to be emitted, marked with `"log_burst_throttled": "true"` to maintain minimal context.
+- **Tuneable Configuration:** Extended `Config` struct with `EnableRateLimit`, `RateLimitBurst`, and `RateLimitRate` fields for seamless production tuning.
+- **Robust Test Coverage:** Added unit test coverage under `test/logger_test.go` (`TestLogRateLimitingDrops` and `TestLogRateLimitingSamples`) verifying exact token consumption, drop actions, and sampling assertions.
+
+---
+
 ## [1.4.0] - 2026-05-17
 
 ### Added
