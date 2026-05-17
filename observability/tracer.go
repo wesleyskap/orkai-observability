@@ -11,12 +11,18 @@ import (
 )
 
 // Tracer defines the interface for tracing.
+//
+// Usage example:
+//	var t observability.Tracer = observability.NewLocalTracer("auth-service")
 type Tracer interface {
 	StartTrace(ctx context.Context, name string) (context.Context, Span)
 	EndTrace(span Span)
 }
 
 // LocalTracer implements Tracer locally.
+//
+// Usage example:
+//	tracer := observability.NewLocalTracer("user-service")
 type LocalTracer struct {
 	writer  io.Writer
 	service string
@@ -32,6 +38,9 @@ var (
 )
 
 // NewLocalTracer creates a new LocalTracer instance.
+//
+// Usage example:
+//	tracer := observability.NewLocalTracer("auth-service")
 func NewLocalTracer(service string) *LocalTracer {
 	tracer := &LocalTracer{
 		writer:  os.Stdout,
@@ -41,12 +50,18 @@ func NewLocalTracer(service string) *LocalTracer {
 }
 
 // SetWriter configures a custom output writer for testing or redirection.
+//
+// Usage example:
+//	tracer.SetWriter(buf)
 func (t *LocalTracer) SetWriter(w io.Writer) {
 	t.writer = w
 	return
 }
 
 // PushActiveTraceID pushes a trace ID onto the LIFO tracking stack.
+//
+// Usage example:
+//	observability.PushActiveTraceID("db3bda")
 func PushActiveTraceID(id string) {
 	traceMu.Lock()
 	defer traceMu.Unlock()
@@ -54,6 +69,9 @@ func PushActiveTraceID(id string) {
 }
 
 // PopActiveTraceID removes the top trace ID from the LIFO tracking stack.
+//
+// Usage example:
+//	observability.PopActiveTraceID()
 func PopActiveTraceID() {
 	traceMu.Lock()
 	defer traceMu.Unlock()
@@ -63,6 +81,9 @@ func PopActiveTraceID() {
 }
 
 // GetActiveTraceID retrieves the current active trace ID at the top of the stack.
+//
+// Usage example:
+//	id := observability.GetActiveTraceID()
 func GetActiveTraceID() string {
 	traceMu.RLock()
 	defer traceMu.RUnlock()
@@ -73,6 +94,9 @@ func GetActiveTraceID() string {
 }
 
 // StartTrace starts a new span and returns the context.
+//
+// Usage example:
+//	ctx, span := tracer.StartTrace(context.Background(), "DBQuery")
 func (t *LocalTracer) StartTrace(ctx context.Context, name string) (context.Context, Span) {
 	traceID := generateRandomHex(8)
 	span := Span{
@@ -87,6 +111,9 @@ func (t *LocalTracer) StartTrace(ctx context.Context, name string) (context.Cont
 }
 
 // EndTrace ends a span and prints details.
+//
+// Usage example:
+//	tracer.EndTrace(span)
 func (t *LocalTracer) EndTrace(span Span) {
 	duration := time.Since(span.StartTime)
 	line := "[TRACE] End " + span.Name + " duration=" + duration.String() + "\n"

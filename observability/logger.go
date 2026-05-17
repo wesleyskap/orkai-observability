@@ -7,6 +7,9 @@ import (
 )
 
 // Logger defines the interface for structured logging.
+//
+// Usage example:
+//	var l observability.Logger = observability.NewJSONLogger(os.Stdout, "auth-service")
 type Logger interface {
 	Info(msg string, fields ...Field)
 	Debug(msg string, fields ...Field)
@@ -15,6 +18,9 @@ type Logger interface {
 }
 
 // JSONLogger is a structured logger that writes to an io.Writer.
+//
+// Usage example:
+//	logger := observability.NewJSONLogger(os.Stdout, "auth-service")
 type JSONLogger struct {
 	writer        io.Writer
 	service       string
@@ -22,6 +28,9 @@ type JSONLogger struct {
 }
 
 // NewJSONLogger creates a new JSONLogger instance.
+//
+// Usage example:
+//	logger := observability.NewJSONLogger(os.Stdout, "my-service")
 func NewJSONLogger(w io.Writer, service string) *JSONLogger {
 	logger := &JSONLogger{
 		writer:  w,
@@ -31,12 +40,18 @@ func NewJSONLogger(w io.Writer, service string) *JSONLogger {
 }
 
 // SetTraceProvider configures a dynamic trace ID provider for log correlation.
+//
+// Usage example:
+//	logger.SetTraceProvider(observability.GetActiveTraceID)
 func (l *JSONLogger) SetTraceProvider(provider func() string) {
 	l.traceProvider = provider
 	return
 }
 
 // Info logs an informational message.
+//
+// Usage example:
+//	logger.Info("processing request", observability.NewStringField("user", "admin"))
 func (l *JSONLogger) Info(msg string, fields ...Field) {
 	traceID := ""
 	if l.traceProvider != nil {
@@ -47,6 +62,9 @@ func (l *JSONLogger) Info(msg string, fields ...Field) {
 }
 
 // Debug logs a debug-level message.
+//
+// Usage example:
+//	logger.Debug("cache miss", observability.NewStringField("key", "user_1"))
 func (l *JSONLogger) Debug(msg string, fields ...Field) {
 	traceID := ""
 	if l.traceProvider != nil {
@@ -57,6 +75,9 @@ func (l *JSONLogger) Debug(msg string, fields ...Field) {
 }
 
 // Warn logs a warning message.
+//
+// Usage example:
+//	logger.Warn("slow query performance")
 func (l *JSONLogger) Warn(msg string, fields ...Field) {
 	traceID := ""
 	if l.traceProvider != nil {
@@ -67,6 +88,9 @@ func (l *JSONLogger) Warn(msg string, fields ...Field) {
 }
 
 // Error logs an error message.
+//
+// Usage example:
+//	logger.Error("connection failure", err)
 func (l *JSONLogger) Error(msg string, err error, fields ...Field) {
 	traceID := ""
 	if l.traceProvider != nil {
