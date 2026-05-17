@@ -2,6 +2,7 @@ package observability
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"runtime"
 	"strconv"
@@ -52,6 +53,10 @@ type Logger interface {
 	Debug(msg string, fields ...Field)
 	Warn(msg string, fields ...Field)
 	Error(msg string, err error, fields ...Field)
+	InfoContext(ctx context.Context, msg string, fields ...Field)
+	DebugContext(ctx context.Context, msg string, fields ...Field)
+	WarnContext(ctx context.Context, msg string, fields ...Field)
+	ErrorContext(ctx context.Context, msg string, err error, fields ...Field)
 	SetLevel(levelStr string)
 }
 
@@ -237,4 +242,60 @@ func captureStackTrace() string {
 			return builder.String()
 		}
 	}
+}
+
+// resolveTraceID extracts the trace ID from context or falls back to provider.
+func (l *JSONLogger) resolveTraceID(ctx context.Context) string {
+	if id := TraceIDFromContext(ctx); id != "" {
+		return id
+	}
+	if l.traceProvider != nil {
+		return l.traceProvider()
+	}
+	return ""
+}
+
+// InfoContext logs an info message with context-aware trace correlation.
+func (l *JSONLogger) InfoContext(ctx context.Context, msg string, fields ...Field) {
+	if atomic.LoadInt32(&l.level) > LevelInfo {
+		return
+	}
+	traceID := l.resolveTraceID(ctx)
+	jsonStr := formatJSON("INFO", l.service, traceID, msg, fields)
+	_, _ = l.writer.Write([]byte(jsonStr))
+}
+
+// WarnContext logs a warning message with context-aware trace correlation.
+func (l *JSONLogger) WarnContext(ctx context.Context, msg string, fields ...Field) {
+	if atomic.LoadInt32(&l.level) > LevelWarn {
+		return
+	}
+	traceID := l.resolveTraceID(ctx)
+	jsonStr := formatJSON("WARN", l.service, traceID, msg, fields)
+	_, _ = l.writer.Write([]byte(jsonStr))
+}
+
+// ErrorContext logs an error message with context-aware trace correlation and stack trace capture.
+func (l *JSONLogger) ErrorContext(ctx context.Context, msg string, err error, fields ...Field) {
+	if atomic.LoadInt32(&l.level) > LevelError {
+		return
+	}
+	traceID := l.resolveTraceID(ctx)
+	stack := captureStackTrace()
+	errFields := append(fields, NewStringField("error", err.Error()))
+	if stack != "" {
+		errFields = append(errFields, NewStringField("stack_trace", stack))
+	}
+	jsonStr := formatJSON("ERROR", l.service, traceID, msg, errFields)
+	_, _ = l.writer.Write([]byte(jsonStr))
+}
+
+// DebugContext logs a debug message with context-aware trace correlation.
+func (l *JSONLogger) DebugContext(ctx context.Context, msg string, fields ...Field) {
+	if atomic.LoadInt32(&l.level) > LevelDebug {
+		return
+	}
+	traceID := l.resolveTraceID(ctx)
+	jsonStr := formatJSON("DEBUG", l.service, traceID, msg, fields)
+	_, _ = l.writer.Write([]byte(jsonStr))
 }

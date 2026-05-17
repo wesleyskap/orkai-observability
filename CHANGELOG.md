@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.4.0] - 2026-05-17
+
+### Added
+- **Context-Aware Log Correlation:** Implemented native context-aware log correlation APIs. Developers can use `InfoContext`, `DebugContext`, `WarnContext`, and `ErrorContext` to automatically extract the active trace ID from `context.Context` parameters using package-level `ContextWithTraceID` and `TraceIDFromContext` utilities.
+
+  ```go
+  // Invocations are clean and contextual:
+  ctx := observability.ContextWithTraceID(context.Background(), "my-trace-id")
+  observability.InfoContext(ctx, "processing payment")
+  ```
+
+- **Context Correlation Test Coverage:** Added unit test coverage under `test/logger_test.go` (`TestJSONLoggerContextTraceCorrelation`) asserting context-to-log trace propagation and dynamic fallback options.
+
+### Changed
+- **Documentation:** Updated the README to include documentation and code snippets for context-aware trace logging and correlation.
+
+---
+
 ## [1.3.0] - 2026-05-17
 
 ### Added

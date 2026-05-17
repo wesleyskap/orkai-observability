@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -121,5 +122,24 @@ func TestLGPDCompliance(t *testing.T) {
 	}
 	if !strings.Contains(out, `"user_id":"usr_99"`) {
 		t.Errorf("expected user_id to be plain text, got: %s", out)
+	}
+}
+
+// TestJSONLoggerContextTraceCorrelation asserts log messages propagate trace IDs correctly from context.
+func TestJSONLoggerContextTraceCorrelation(t *testing.T) {
+	fw := &FakeWriter{}
+	logger := observability.NewJSONLogger(fw, "test-service")
+	ctx := observability.ContextWithTraceID(context.Background(), "my-custom-ctx-trace-123")
+	logger.InfoContext(ctx, "contextual log info")
+	out := fw.Buf.String()
+	if !strings.Contains(out, `"trace_id":"my-custom-ctx-trace-123"`) {
+		t.Fatalf("expected context trace ID, got: %s", out)
+	}
+	fw.Buf.Reset()
+	logger.SetTraceProvider(func() string { return "fallback-provider-id" })
+	logger.InfoContext(context.Background(), "contextual log fallback")
+	out2 := fw.Buf.String()
+	if !strings.Contains(out2, `"trace_id":"fallback-provider-id"`) {
+		t.Fatalf("expected fallback trace ID, got: %s", out2)
 	}
 }

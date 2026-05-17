@@ -96,6 +96,50 @@ func Error(msg string, err error, fields ...Field) {
 	}
 }
 
+// InfoContext delegates a context-aware informational message to the global logger.
+//
+// Usage example:
+//
+//	observability.InfoContext(ctx, "processing order", observability.NewStringField("id", "321"))
+func InfoContext(ctx context.Context, msg string, fields ...Field) {
+	if globalInstance != nil {
+		globalInstance.Logger.InfoContext(ctx, msg, fields...)
+	}
+}
+
+// DebugContext delegates a context-aware debug message to the global logger.
+//
+// Usage example:
+//
+//	observability.DebugContext(ctx, "cache lookup result", observability.NewStringField("status", "hit"))
+func DebugContext(ctx context.Context, msg string, fields ...Field) {
+	if globalInstance != nil {
+		globalInstance.Logger.DebugContext(ctx, msg, fields...)
+	}
+}
+
+// WarnContext delegates a context-aware warning message to the global logger.
+//
+// Usage example:
+//
+//	observability.WarnContext(ctx, "deprecated API route called")
+func WarnContext(ctx context.Context, msg string, fields ...Field) {
+	if globalInstance != nil {
+		globalInstance.Logger.WarnContext(ctx, msg, fields...)
+	}
+}
+
+// ErrorContext delegates a context-aware error message to the global logger.
+//
+// Usage example:
+//
+//	observability.ErrorContext(ctx, "payment fail", err)
+func ErrorContext(ctx context.Context, msg string, err error, fields ...Field) {
+	if globalInstance != nil {
+		globalInstance.Logger.ErrorContext(ctx, msg, err, fields...)
+	}
+}
+
 // Counter increments the global counter metric.
 //
 // Usage example:

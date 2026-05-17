@@ -130,7 +130,7 @@ go get github.com/wesleyskap/orkai-observability/observability
 
 ## Quickstart
 
-Here is how to initialize and use the observability package in a typical service handler workflow:
+Here is how to initialize and use the observability package in a typical service handler workflow utilizing context-aware log correlation:
 
 ```go
 package main
@@ -144,65 +144,74 @@ import (
 func main() {
 	// 1. Initialize the global facade
 	cfg := observability.Config{
-		ServiceName: "user-service",
-		Environment: "production",
+		ServiceName: "auth-service",
+		Environment: "dev",
 		LogLevel:    "info",
 	}
 	_ = observability.Init(cfg)
 
 	// 2. Simulate a client handler request
-	processUserRequest()
+	simulateRequest()
 
 	// 3. Print metrics report to the terminal
 	observability.Dump()
 }
 
-func processUserRequest() {
+func simulateRequest() {
 	start := time.Now()
 
 	// Start a trace span (context-aware)
-	ctx, span := observability.StartSpan(context.Background(), "GetUserHandler")
+	ctx, span := observability.StartSpan(context.Background(), "LoginHandler")
 	defer observability.EndSpan(span)
 
-	// Logs automatically capture the active span's trace ID
-	observability.Info("handling get user request")
+	// Logs automatically capture the active span's trace ID via context correlation
+	observability.InfoContext(ctx, "login request received")
 
-	// Simulate a nested call (e.g. database query)
-	performDatabaseQuery(ctx)
+	// PII masking sanitization example
+	observability.InfoContext(ctx, "user login attempt",
+		observability.NewStringField("email", "john.doe@example.com"),
+		observability.NewStringField("password", "super-secret-123"),
+	)
+
+	// Simulate a nested call (e.g. database query) passing the context
+	mockDatabaseCall(ctx)
 
 	// Restores the parent trace ID after the child span ends
-	observability.Info("user fetched successfully", observability.NewStringField("role", "member"))
+	observability.InfoContext(ctx, "user authenticated successfully", observability.NewStringField("role", "admin"))
 
 	// Track custom metrics
-	observability.Counter("user_requests_total")
-	observability.Latency("user_request_duration", time.Since(start))
+	observability.Counter("login_requests_total")
+	observability.Latency("login_duration", time.Since(start))
 }
 
-func performDatabaseQuery(ctx context.Context) {
-	// Nested span inherits correlation context
-	_, span := observability.StartSpan(ctx, "DBQueryUser")
+func mockDatabaseCall(ctx context.Context) {
+	// Nested span inherits correlation context and returns a child context
+	dbCtx, span := observability.StartSpan(ctx, "DatabaseQuery")
 	defer observability.EndSpan(span)
 
-	observability.Info("selecting user from MySQL", observability.NewStringField("table", "users"))
-	time.Sleep(20 * time.Millisecond) // Mock database latency
+	observability.InfoContext(dbCtx, "executing select user query", observability.NewStringField("table", "users"))
+	time.Sleep(15 * time.Millisecond) // Mock database latency
+	observability.Counter("db_queries_total")
 }
 ```
 
 ### Expected Output
 
-Running the code above produces beautifully correlated, structured console logs:
+Running the code above produces beautifully correlated, structured console logs with automatic PII masking:
 
 ```txt
-[TRACE] Start GetUserHandler trace_id=b78c92a18f0c3d9a
-{"level":"INFO","service":"user-service","trace_id":"b78c92a18f0c3d9a","msg":"handling get user request"}
-[TRACE] Start DBQueryUser trace_id=d48fa290e29bca02
-{"level":"INFO","service":"user-service","trace_id":"d48fa290e29bca02","msg":"selecting user from MySQL","table":"users"}
-[TRACE] End DBQueryUser duration=20.0051ms
-{"level":"INFO","service":"user-service","trace_id":"b78c92a18f0c3d9a","msg":"user fetched successfully","role":"member"}
-[TRACE] End GetUserHandler duration=20.0051ms
+[TRACE] Start LoginHandler trace_id=92a2ef510bebeb42
+{"level":"INFO","service":"auth-service","trace_id":"92a2ef510bebeb42","msg":"login request received"}
+{"level":"INFO","service":"auth-service","trace_id":"92a2ef510bebeb42","msg":"user login attempt","email":"[MASKED]","password":"[MASKED]"}
+[TRACE] Start DatabaseQuery trace_id=38820f036cb47ab4
+{"level":"INFO","service":"auth-service","trace_id":"38820f036cb47ab4","msg":"executing select user query","table":"users"}
+[TRACE] End DatabaseQuery duration=15.4009ms
+{"level":"INFO","service":"auth-service","trace_id":"92a2ef510bebeb42","msg":"user authenticated successfully","role":"admin"}
+[TRACE] End LoginHandler duration=15.4009ms
 === METRICS ===
-user_requests_total: 1
-user_request_duration_latency_avg: 20.0051ms
+login_requests_total: 1
+db_queries_total: 1
+login_duration_latency_avg: 15.4009ms
 ```
 
 ---
@@ -284,6 +293,9 @@ observability.Info("user login attempt",
 	observability.NewStringField("email", "john.doe@example.com"),
 	observability.NewStringField("password", "super-secret-123"),
 )
+
+// Serializes automatically with masked values:
+// {"level":"INFO","msg":"user login attempt","email":"[MASKED]","password":"[MASKED]"}
 ```
 
 #### Custom Sensitive Keys
@@ -307,6 +319,23 @@ observability.Error("failed database operation", err,
 
 // Serializes under the "stack_trace" JSON key:
 // {"level":"ERROR","msg":"failed database operation","error":"timeout","stack_trace":"main.queryUser:42; main.handleRequest:20","retry_count":3}
+```
+
+### 7. Context-Aware Log Correlation
+
+Simplify trace propagation in large microservice codebases by logging directly with context payloads. The package automatically resolves and correlates trace IDs carried inside `context.Context` parameters:
+
+```go
+// Securely inject trace ID to a standard context.Context
+ctx := observability.ContextWithTraceID(context.Background(), "my-trace-id-123")
+
+// Log using the context-aware API
+observability.InfoContext(ctx, "processing incoming payment transaction", 
+	observability.NewIntField("amount", 250),
+)
+
+// Serializes automatically with the correlated trace ID:
+// {"level":"INFO","msg":"processing incoming payment transaction","trace_id":"my-trace-id-123","amount":250}
 ```
 
 ---
@@ -339,6 +368,8 @@ $ go test -v ./test/...
 --- PASS: TestJSONLoggerErrorStackTrace (0.00s)
 === RUN   TestLGPDCompliance
 --- PASS: TestLGPDCompliance (0.00s)
+=== RUN   TestJSONLoggerContextTraceCorrelation
+--- PASS: TestJSONLoggerContextTraceCorrelation (0.00s)
 === RUN   TestMetricsIncrement
 --- PASS: TestMetricsIncrement (0.00s)
 === RUN   TestMetricsLatency

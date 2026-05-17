@@ -23,18 +23,22 @@ func simulateRequest() {
 	start := time.Now()
 	ctx, span := observability.StartSpan(context.Background(), "LoginHandler")
 	defer observability.EndSpan(span)
-	observability.Info("login request received")
+	observability.InfoContext(ctx, "login request received")
+	observability.InfoContext(ctx, "user login attempt",
+		observability.NewStringField("email", "john.doe@example.com"),
+		observability.NewStringField("password", "super-secret-123"),
+	)
 	mockDatabaseCall(ctx)
-	observability.Info("user authenticated successfully", observability.NewStringField("role", "admin"))
+	observability.InfoContext(ctx, "user authenticated successfully", observability.NewStringField("role", "admin"))
 	observability.Counter("login_requests_total")
 	observability.Latency("login_duration", time.Since(start))
 }
 
 // mockDatabaseCall simulates a nested database query within the current trace.
 func mockDatabaseCall(ctx context.Context) {
-	_, span := observability.StartSpan(ctx, "DatabaseQuery")
+	dbCtx, span := observability.StartSpan(ctx, "DatabaseQuery")
 	defer observability.EndSpan(span)
-	observability.Info("executing select user query", observability.NewStringField("table", "users"))
+	observability.InfoContext(dbCtx, "executing select user query", observability.NewStringField("table", "users"))
 	time.Sleep(15 * time.Millisecond)
 	observability.Counter("db_queries_total")
 }
