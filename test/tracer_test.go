@@ -3,9 +3,10 @@ package test
 import (
 	"bytes"
 	"context"
-	"orkai-observability/observability"
 	"strings"
 	"testing"
+
+	"github.com/wesleyskap/orkai-observability/observability"
 )
 
 // TestTracerStart verifies trace context, start print, and active trace ID.

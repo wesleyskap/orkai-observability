@@ -2,9 +2,10 @@ package test
 
 import (
 	"context"
-	"orkai-observability/observability"
 	"testing"
 	"time"
+
+	"github.com/wesleyskap/orkai-observability/observability"
 )
 
 // TestGlobalFacadeInit verifies global facade initializes correctly.

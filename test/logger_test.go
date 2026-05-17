@@ -3,9 +3,10 @@ package test
 import (
 	"bytes"
 	"errors"
-	"orkai-observability/observability"
 	"strings"
 	"testing"
+
+	"github.com/wesleyskap/orkai-observability/observability"
 )
 
 // FakeWriter is a named mock for io.Writer to capture output.

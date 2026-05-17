@@ -2,10 +2,11 @@ package test
 
 import (
 	"bytes"
-	"orkai-observability/observability"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/wesleyskap/orkai-observability/observability"
 )
 
 // TestMetricsIncrement asserts counter increments and prints correctly.

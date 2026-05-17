@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"orkai-observability/observability"
+	"github.com/wesleyskap/orkai-observability/observability"
 	"time"
 )
 
