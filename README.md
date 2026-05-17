@@ -98,6 +98,7 @@ orkai-observability/
 │   ├── middleware.go       # Reusable HTTP Tracing & Logging Middleware
 │   ├── observability.go    # Global Facade & package-level API
 │   ├── tracer.go           # Thread-safe LIFO Trace Stack & cryptographics
+│   ├── transport.go        # Outbound HTTP Client Tracing Transport
 │   └── types.go            # Explicit types (Field, Span)
 ├── test/
 │   ├── config_test.go      # Configuration validation tests
@@ -107,6 +108,7 @@ orkai-observability/
 │   ├── middleware_test.go  # HTTP Middleware tests
 │   ├── observability_test.go     # Global Facade tests
 │   ├── tracer_test.go            # LIFO Trace Stack tests
+│   ├── transport_test.go         # Outbound HTTP Client Transport tests
 │   └── types_test.go             # Explicit types tests
 ├── go.mod                  # Go module definition
 ├── .gitignore              # Standard Go repository rules
@@ -252,6 +254,18 @@ Change the active log level dynamically at runtime (e.g., to troubleshoot a live
 ```go
 // Changes the global log level to "debug" on the fly!
 observability.SetLogLevel("debug")
+```
+
+### 4. Outbound Context Propagation
+
+Automatically propagate the active `X-Trace-ID` header across outgoing HTTP calls to other services/APIs using standard clients wrapped in `TracingRoundTripper`:
+
+```go
+// Creates an HTTP client carrying active parent span trace IDs in header payloads
+client := observability.NewTracingClient()
+
+// Executing calls now automatically forwards the active trace to downstream microservices!
+resp, err := client.Get("https://api.external.service/users/me")
 ```
 
 ---

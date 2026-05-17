@@ -6,6 +6,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.0.10] - 2026-05-17
+
+### Added
+- **Outbound Context Propagation:** Added `TracingRoundTripper` implementing `http.RoundTripper` to automatically inject the active LIFO trace ID (`X-Trace-ID` header) into outbound HTTP requests.
+- **Client Transport Wrapper:** Provided `NewTracingClient()` constructor to instantiate pre-configured tracing clients out-of-the-box in zero developer boilerplate.
+
+  #### Before (Manual trace header injection inside every API call)
+  ```go
+  // In your API client functions, you had to manually fetch and pass headers
+  req, _ := http.NewRequest("GET", "https://api.service/users", nil)
+  activeID := observability.GetActiveTraceID()
+  if activeID != "" {
+      req.Header.Set("X-Trace-ID", activeID)
+  }
+  resp, err := http.DefaultClient.Do(req)
+  ```
+
+  #### After (Automatic distributed trace context propagation)
+  ```go
+  // Instantiates a client pre-configured with tracing transport
+  client := observability.NewTracingClient()
+
+  // Outbound calls automatically inherit and carry the active LIFO trace context!
+  resp, err := client.Get("https://api.service/users")
+  ```
+
+- **Transport Test Suites:** Added integration test coverage under `test/transport_test.go` asserting automated header injection and stack interaction.
+
+### Changed
+- **Documentation:** Updated the README directory tree map and added usage examples for outbound transport client injection.
+
+---
+
+## [1.0.9] - 2026-05-17
+
+### Added
+- **Repository Changelog:** Created the initial structured `CHANGELOG.md` mapped to release tags.
+
+### Changed
+- **Repository Rules:** Updated `.gitignore` to keep IDE files and planning boards properly ignored.
+
+---
+
 ## [1.0.8] - 2026-05-17
 
 ### Changed
