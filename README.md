@@ -1,5 +1,5 @@
-[![Go Reference](https://pkg.go.dev/badge/github.com/wesleyskap/orkai-observability.svg)](https://pkg.go.dev/github.com/wesleyskap/orkai-observability)     [![Go Report Card](https://goreportcard.com/badge/github.com/wesleyskap/orkai-observability)](https://goreportcard.com/report/github.com/wesleyskap/orkai-observability)     [![Go CI](https://github.com/wesleyskap/orkai-observability/actions/workflows/go.yml/badge.svg)](https://github.com/wesleyskap/orkai-observability/actions/workflows/go.yml)
-
+[![Go Reference](https://pkg.go.dev/badge/github.com/wesleyskap/orkai-observability.svg)](https://pkg.go.dev/github.com/wesleyskap/orkai-observability)     [![Go Report Card](https://goreportcard.com/badge/github.com/wesleyskap/orkai-observability)](https://goreportcard.com/report/github.com/wesleyskap/orkai-observability)     [![Go CI](https://github.com/wesleyskap/orkai-observability/actions/workflows/go.yml/badge.svg)](https://github.com/wesleyskap/orkai-observability/actions/workflows/go.yml)   [![](https://img.shields.io/github/release/wesleyskap/orkai-observability.svg)](https://github.com/wesleyskap/orkai-observability/releases/latest "GitHub release")  [![Open Source Helpers](https://www.codetriage.com/wesleyskap/orkai-observability/badges/users.svg)](https://www.codetriage.com/wesleyskap/orkai-observability)
+ 
 
 # Orkai Observability
 
@@ -491,6 +491,35 @@ observability.GaugeWithLabels("db_connections_active", 14, map[string]string{
      }
    }
    ```
+
+### 10. Distributed Trace Context Propagation (W3C / B3 Standards)
+
+Achieve end-to-end transactional observability across distributed microservice boundaries. The package automatically injects active trace contexts into outbound client requests and extracts them from incoming HTTP handler boundaries, conforming to the modern universal **W3C Trace Context** and classic **B3** propagation standards:
+
+```go
+// 1. In your HTTP Client (Outbound Request):
+// Create a client equipped with our tracing round-tripper
+client := observability.NewTracingClient()
+
+// Make request - trace context (W3C traceparent and b3 headers) is injected automatically
+req, _ := http.NewRequestWithContext(ctx, "GET", "https://api.internal/profile", nil)
+resp, err := client.Do(req)
+
+// 2. In your downstream Microservice HTTP Handler (Inbound Request):
+// The HTTPMiddleware automatically extracts trace context, restoring the lineage
+mux := http.NewServeMux()
+mux.HandleFunc("/profile", func(w http.ResponseWriter, r *http.Request) {
+    // The logger automatically resolves and correlates the parent trace ID
+    observability.InfoContext(r.Context(), "handling profile lookup")
+})
+loggedRouter := observability.HTTPMiddleware(mux)
+```
+
+#### Supported Formats
+
+1. **W3C traceparent:** Standardized header carrying format: `00-{trace_id}-{span_id}-{trace_flags}` (e.g. `traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`).
+2. **B3 Single Header:** Portable single header syntax: `{trace_id}-{span_id}-{sampled}` (e.g. `b3: 4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1`).
+3. **Legacy correlation:** Simple fallback matching the custom `X-Trace-ID` header.
 
 ---
 

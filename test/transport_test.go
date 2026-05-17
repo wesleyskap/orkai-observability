@@ -37,6 +37,12 @@ func TestTracingRoundTripperActiveTrace(t *testing.T) {
 		if traceHeader != expectedTrace {
 			t.Errorf("expected X-Trace-ID header %s, got %s", expectedTrace, traceHeader)
 		}
+		if tp := r.Header.Get("traceparent"); tp != "00-test-outbound-trace-id-test-outbound-tr-01" {
+			t.Errorf("expected traceparent header, got %s", tp)
+		}
+		if b3 := r.Header.Get("b3"); b3 != "test-outbound-trace-id-test-outbound-tr-1" {
+			t.Errorf("expected b3 header, got %s", b3)
+		}
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()

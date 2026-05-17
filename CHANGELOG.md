@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.7.0] - 2026-05-17
+
+### Added
+- **Distributed Trace Context Propagation:** Implemented full distributed tracing boundary support injecting context into outbound requests and extracting context from inbound handlers.
+- **Multi-Standard Header Resolution:** Seamless support for modern W3C Trace Context (`traceparent`), standard B3 (single/multi-headers), and custom fallback (`X-Trace-ID`) formats.
+- **Automated Transport Round-Tripping:** Upgraded `TracingRoundTripper` to inject trace information silently into downstream clients.
+- **Resilient Middleware Extraction:** Upgraded `HTTPMiddleware` to automatically extract incoming trace IDs to restore trace hierarchy across systems.
+
+---
+
 ## [1.6.0] - 2026-05-17
 
 ### Added

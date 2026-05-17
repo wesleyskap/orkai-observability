@@ -31,7 +31,7 @@ func (rw *responseWriterWrapper) WriteHeader(code int) {
 //	loggedMux := observability.HTTPMiddleware(mux)
 func HTTPMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		traceID := req.Header.Get("X-Trace-ID")
+		traceID := ExtractTraceID(req)
 		ctx := req.Context()
 		var span Span
 		if traceID != "" {

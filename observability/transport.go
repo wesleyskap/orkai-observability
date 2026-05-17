@@ -30,7 +30,7 @@ func (rt *TracingRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	activeID := GetActiveTraceID()
 	if activeID != "" {
 		reqCopy := req.Clone(req.Context())
-		reqCopy.Header.Set("X-Trace-ID", activeID)
+		InjectTraceID(reqCopy, activeID)
 		return rt.next.RoundTrip(reqCopy)
 	}
 	return rt.next.RoundTrip(req)
