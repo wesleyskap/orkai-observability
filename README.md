@@ -237,15 +237,18 @@ func main() {
 }
 ```
 
-### 2. Metrics Exporter
+### 2. Live Metrics Exporter (JSON & Prometheus)
 
-Expose `/metrics` in JSON format dynamically for scrapers or dashboards using `observability.MetricsHTTPHandler()`:
+Expose `/metrics` dynamically for scrapers or dashboards using `observability.MetricsHTTPHandler()`. It natively supports both custom JSON payloads and the official Prometheus Text Exposition format:
 
 ```go
 mux := http.NewServeMux()
-// Exposes counters, gauges, and latencies as JSON snapshots
+// Exposes counters, gauges, and latencies
 mux.HandleFunc("/metrics", observability.MetricsHTTPHandler())
 ```
+
+- **JSON Format (Default):** Served on standard calls.
+- **Prometheus Format:** Served when calling `/metrics?format=prometheus` or when sending request headers containing `Accept: text/plain`.
 
 ### 3. Dynamic Log Level Rotation
 

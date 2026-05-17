@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.0.11] - 2026-05-17
+
+### Added
+- **Prometheus Metric Exposition Format:** Added support for the official Prometheus Text Exposition format (counters, gauges, and latency averages) inside the metrics HTTP handler. The registration invocation remains completely identical and backward-compatible, while the internal handler now dynamically negotiates the response format based on standard headers (`Accept: text/plain`) or query string parameters (`format=prometheus`).
+
+  ```go
+  // The invocation syntax remains completely unchanged:
+  mux.HandleFunc("/metrics", observability.MetricsHTTPHandler())
+
+  // The handler now automatically responds in:
+  // - Custom JSON format (by default)
+  // - Official Prometheus Text format (when queried via ?format=prometheus or Accept: text/plain)
+  ```
+
+- **Prometheus Test Suites:** Added integration tests inside `test/exporter_test.go` asserting standard Prometheus headers, metric types, and values.
+
+### Changed
+- **Documentation:** Updated the README to describe the dual-format capabilities of the metrics exporter.
+
+---
+
 ## [1.0.10] - 2026-05-17
 
 ### Added
