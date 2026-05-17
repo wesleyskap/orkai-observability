@@ -5,6 +5,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 )
 
@@ -20,6 +21,24 @@ var levelMap = map[string]int32{
 	"info":  LevelInfo,
 	"warn":  LevelWarn,
 	"error": LevelError,
+}
+
+var (
+	sensitiveMu   sync.RWMutex
+	sensitiveKeys = []string{"password", "token", "secret", "cvv", "card", "cpf", "email"}
+)
+
+// AddSensitiveKeys appends new patterns to the global PII log masking list.
+//
+// Usage example:
+//
+//	observability.AddSensitiveKeys("apiKey", "ssn")
+func AddSensitiveKeys(keys ...string) {
+	sensitiveMu.Lock()
+	defer sensitiveMu.Unlock()
+	for _, key := range keys {
+		sensitiveKeys = append(sensitiveKeys, strings.ToLower(key))
+	}
 }
 
 // Logger defines the interface for structured logging.
@@ -170,10 +189,27 @@ func writeFields(buf *bytes.Buffer, fields []Field) {
 	for _, f := range fields {
 		buf.WriteString(",")
 		buf.WriteString(`"` + f.Key + `":`)
+		if isSensitiveKey(f.Key) {
+			buf.WriteString(`"[MASKED]"`)
+			continue
+		}
 		if f.IsInt {
 			buf.WriteString(strconv.FormatInt(f.IntValue, 10))
 		} else {
 			buf.WriteString(`"` + f.StrValue + `"`)
 		}
 	}
+}
+
+// isSensitiveKey checks if a key contains any registered PII keywords.
+func isSensitiveKey(key string) bool {
+	sensitiveMu.RLock()
+	defer sensitiveMu.RUnlock()
+	lower := strings.ToLower(key)
+	for _, k := range sensitiveKeys {
+		if strings.Contains(lower, k) {
+			return true
+		}
+	}
+	return false
 }

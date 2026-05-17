@@ -70,3 +70,23 @@ func TestJSONLoggerDynamicLevel(t *testing.T) {
 		t.Errorf("expected debug log to print after rotation, got %s", fw.Buf.String())
 	}
 }
+
+// TestJSONLoggerPIIMasking verifies that sensitive PII fields are automatically masked.
+func TestJSONLoggerPIIMasking(t *testing.T) {
+	fw := &FakeWriter{}
+	logger := observability.NewJSONLogger(fw, "test-service")
+
+	logger.Info("user input", observability.NewStringField("password", "my-secret-password"))
+	output1 := fw.Buf.String()
+	if strings.Contains(output1, "my-secret-password") || !strings.Contains(output1, `"[MASKED]"`) {
+		t.Errorf("expected password to be masked, got %s", output1)
+	}
+
+	fw.Buf.Reset()
+	observability.AddSensitiveKeys("socialSecurityNumber")
+	logger.Info("user document", observability.NewStringField("socialSecurityNumber", "999-99-9999"))
+	output2 := fw.Buf.String()
+	if strings.Contains(output2, "999-99-9999") || !strings.Contains(output2, `"[MASKED]"`) {
+		t.Errorf("expected socialSecurityNumber to be masked, got %s", output2)
+	}
+}

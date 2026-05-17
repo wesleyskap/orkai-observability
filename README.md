@@ -1,4 +1,5 @@
-[![Go Reference](https://pkg.go.dev/badge/github.com/wesleyskap/orkai-observability.svg)](https://pkg.go.dev/github.com/wesleyskap/orkai-observability)
+[![Go Reference](https://pkg.go.dev/badge/github.com/wesleyskap/orkai-observability.svg)](https://pkg.go.dev/github.com/wesleyskap/orkai-observability)     [![Go Report Card](https://goreportcard.com/badge/github.com/wesleyskap/orkai-observability)](https://goreportcard.com/report/github.com/wesleyskap/orkai-observability)
+
 
 # Orkai Observability
 
@@ -269,6 +270,29 @@ client := observability.NewTracingClient()
 
 // Executing calls now automatically forwards the active trace to downstream microservices!
 resp, err := client.Get("https://api.external.service/users/me")
+```
+
+### 5. PII Log Masking & Sanitization
+
+Protect sensitive PII (Personally Identifiable Information) data against accidental leakage in structure logs. The package automatically filters and obfuscates values when keys contain keywords like `password`, `token`, `secret`, `cvv`, `card`, `cpf`, or `email`:
+
+Ensure strict compliance with data safety regulations (such as LGPD and GDPR) by automatically masking sensitive field values inside the structured JSON logs.
+
+```go
+// Logging sensitive data will automatically replace values with "[MASKED]"
+observability.Info("user login attempt", 
+	observability.NewStringField("email", "john.doe@example.com"),
+	observability.NewStringField("password", "super-secret-123"),
+)
+```
+
+#### Custom Sensitive Keys
+
+Add custom PII keywords to the global log sanitization list at runtime:
+
+```go
+// Add custom keywords (case-insensitive)
+observability.AddSensitiveKeys("socialSecurityNumber", "apiKey")
 ```
 
 ---

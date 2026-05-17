@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.0.12] - 2026-05-17
+
+### Added
+- **PII Log Masking & Sanitization:** Integrated automated Personally Identifiable Information (PII) masking inside the structured JSON logger. Key names containing keywords like `password`, `token`, `secret`, `cvv`, `card`, `cpf`, or `email` automatically have their values replaced with `"[MASKED]"`.
+- **Runtime Sensitive Keys Registration:** Provided thread-safe global `AddSensitiveKeys(keys ...string)` API protected under concurrent read-write locks (`sync.RWMutex`) to register custom PII keywords at runtime.
+
+Ensure strict compliance with data safety regulations (such as LGPD and GDPR) by automatically masking sensitive field values inside the structured JSON logs.
+
+  ```go
+  // Invocations are clean and automatic:
+  observability.Info("user signup",
+      observability.NewStringField("email", "test@test.com"),
+      observability.NewStringField("password", "secret-pass"),
+  )
+
+  // Serializes automatically as:
+  // {"level":"INFO","msg":"user signup","email":"[MASKED]","password":"[MASKED]"}
+  ```
+
+- **Masking Test Coverage:** Added assertions in `test/logger_test.go` (`TestJSONLoggerPIIMasking`) verifying default masking and custom PII registrations.
+
+### Changed
+- **Documentation:** Updated the README to describe the PII masking capabilities and runtime registration syntax.
+
+---
+
 ## [1.0.11] - 2026-05-17
 
 ### Added
