@@ -3,6 +3,7 @@ package observability
 import (
 	"bytes"
 	"io"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
