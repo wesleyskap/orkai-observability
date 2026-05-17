@@ -13,7 +13,7 @@ sequenceDiagram
     autonumber
     actor Client as Client Request
     participant App as Your Go Application
-    box rgb(30, 35, 45) observability Facade
+    box rgba(255, 255, 255, 1) observability Facade
         participant Facade as global facade
         participant Logger as JSON Logger
         participant Tracer as Local Tracer (LIFO Stack)
