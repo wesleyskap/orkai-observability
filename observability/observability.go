@@ -156,6 +156,10 @@ func Counter(name string) {
 }
 
 // CounterWithLabels increments the global counter metric with labels.
+//
+// Usage example:
+//
+//	observability.CounterWithLabels("http_requests_total", map[string]string{"method": "POST"})
 func CounterWithLabels(name string, labels map[string]string) {
 	if globalInstance != nil {
 		globalInstance.Metrics.IncCounterWithLabels(name, labels)
@@ -174,6 +178,10 @@ func Latency(name string, d time.Duration) {
 }
 
 // LatencyWithLabels records a latency metric with labels globally.
+//
+// Usage example:
+//
+//	observability.LatencyWithLabels("db_query", 10*time.Millisecond, map[string]string{"op": "select"})
 func LatencyWithLabels(name string, d time.Duration, labels map[string]string) {
 	if globalInstance != nil {
 		globalInstance.Metrics.RecordLatencyWithLabels(name, d, labels)
@@ -192,6 +200,10 @@ func Gauge(name string, value float64) {
 }
 
 // GaugeWithLabels sets a gauge metric with labels globally.
+//
+// Usage example:
+//
+//	observability.GaugeWithLabels("cpu_usage", 85.5, map[string]string{"core": "0"})
 func GaugeWithLabels(name string, value float64, labels map[string]string) {
 	if globalInstance != nil {
 		globalInstance.Metrics.SetGaugeWithLabels(name, value, labels)

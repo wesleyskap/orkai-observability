@@ -23,12 +23,48 @@ type MetricsSummary struct {
 //
 //	var m observability.Metrics = observability.NewInMemoryMetrics("auth-service")
 type Metrics interface {
+	// IncCounter increments a counter metric.
+	//
+	// Usage example:
+	//
+	//	metrics.IncCounter("http_requests_total")
 	IncCounter(name string)
+
+	// IncCounterWithLabels increments a counter metric with specific tags.
+	//
+	// Usage example:
+	//
+	//	metrics.IncCounterWithLabels("http_requests_total", map[string]string{"method": "POST"})
 	IncCounterWithLabels(name string, labels map[string]string)
+
+	// RecordLatency records a latency value.
+	//
+	// Usage example:
+	//
+	//	metrics.RecordLatency("db_query_duration", 15*time.Millisecond)
 	RecordLatency(name string, duration time.Duration)
+
+	// RecordLatencyWithLabels records a latency value with specific tags.
+	//
+	// Usage example:
+	//
+	//	metrics.RecordLatencyWithLabels("db_query", 10*time.Millisecond, map[string]string{"op": "select"})
 	RecordLatencyWithLabels(name string, duration time.Duration, labels map[string]string)
+
+	// SetGauge sets a gauge value.
+	//
+	// Usage example:
+	//
+	//	metrics.SetGauge("memory_usage_bytes", 52428800)
 	SetGauge(name string, value float64)
+
+	// SetGaugeWithLabels sets a gauge value with specific tags.
+	//
+	// Usage example:
+	//
+	//	metrics.SetGaugeWithLabels("cpu_usage", 85.5, map[string]string{"core": "0"})
 	SetGaugeWithLabels(name string, value float64, labels map[string]string)
+
 	Print()
 	GetSummary() MetricsSummary
 }
@@ -195,18 +231,30 @@ func formatMetricKey(name string, labels map[string]string) string {
 }
 
 // IncCounterWithLabels increments a counter with labels.
+//
+// Usage example:
+//
+//	metrics.IncCounterWithLabels("http_requests_total", map[string]string{"method": "POST"})
 func (m *InMemoryMetrics) IncCounterWithLabels(name string, labels map[string]string) {
 	key := formatMetricKey(name, labels)
 	m.IncCounter(key)
 }
 
 // RecordLatencyWithLabels records latency with labels.
+//
+// Usage example:
+//
+//	metrics.RecordLatencyWithLabels("db_query", 10*time.Millisecond, map[string]string{"op": "select"})
 func (m *InMemoryMetrics) RecordLatencyWithLabels(name string, duration time.Duration, labels map[string]string) {
 	key := formatMetricKey(name, labels)
 	m.RecordLatency(key, duration)
 }
 
 // SetGaugeWithLabels sets gauge with labels.
+//
+// Usage example:
+//
+//	metrics.SetGaugeWithLabels("cpu_usage", 85.5, map[string]string{"core": "0"})
 func (m *InMemoryMetrics) SetGaugeWithLabels(name string, value float64, labels map[string]string) {
 	key := formatMetricKey(name, labels)
 	m.SetGauge(key, value)

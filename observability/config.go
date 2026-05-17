@@ -9,9 +9,12 @@ import "errors"
 // Usage example:
 //
 //	cfg := observability.Config{
-//		ServiceName: "user-service",
-//		Environment: "production",
-//		LogLevel:    "info",
+//		ServiceName:     "user-service",
+//		Environment:     "production",
+//		LogLevel:        "info",
+//		EnableRateLimit: true,
+//		RateLimitBurst:  100,
+//		RateLimitRate:   50,
 //	}
 type Config struct {
 	ServiceName     string
