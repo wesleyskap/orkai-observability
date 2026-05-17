@@ -521,6 +521,63 @@ loggedRouter := observability.HTTPMiddleware(mux)
 2. **B3 Single Header:** Portable single header syntax: `{trace_id}-{span_id}-{sampled}` (e.g. `b3: 4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1`).
 3. **Legacy correlation:** Simple fallback matching the custom `X-Trace-ID` header.
 
+#### Distributed Sequence Flow Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Client Application
+    box rgba(240, 240, 240, 0.83) Microservice A - Gateway
+        participant MWA as HTTP Middleware (A)
+        participant ControllerA as Controller / Handler A
+        participant ClientA as Tracing HTTP Client
+    end
+    box rgba(240, 240, 240, 0.76) Microservice B - User API
+        participant MWB as HTTP Middleware (B)
+        participant ControllerB as Controller / Handler B
+    end
+
+    User->>MWA: HTTP GET /checkout
+    activate MWA
+    Note over MWA: No trace header found
+    Note over MWA: Generate new Trace ID: 4bf92f3577b3...
+    MWA->>ControllerA: Invoke (Context with Trace ID)
+    activate ControllerA
+    
+    Note over ControllerA: Log: "processing checkout" [trace_id=4bf92f3577b3...]
+    
+    ControllerA->>ClientA: GET /users/profile (via Tracing Client)
+    activate ClientA
+    Note over ClientA: Inject headers: W3C traceparent, B3, X-Trace-ID
+    
+    ClientA->>MWB: HTTP GET /users/profile<br/>Header: traceparent=00-4bf92f3577b3...-01
+    activate MWB
+    
+    Note over MWB: ExtractTraceID() resolves W3C parent trace id
+    Note over MWB: Resume Trace ID: 4bf92f3577b3...
+    
+    MWB->>ControllerB: Invoke (Context with Resumed Trace ID)
+    activate ControllerB
+    
+    Note over ControllerB: Log: "loading profile" [trace_id=4bf92f3577b3...]
+    
+    ControllerB-->>MWB: HTTP 200 OK Response
+    deactivate ControllerB
+    MWB-->>ClientA: HTTP 200 OK Response
+    deactivate MWB
+    deactivate ClientA
+    
+    ControllerA-->>MWA: Checkout Complete
+    deactivate ControllerA
+    MWA-->>User: HTTP 200 OK Response
+    deactivate MWA
+```
+
+### Architectural Highlights
+* **Seamless Stack Preservation:** Trace propagation works lock-free, preserving parent-child relationships across service networks without requiring complex sidecars.
+* **Standardized Context Headers:** Supports modern universal W3C traceparent as the primary propagation standard and B3 Single Header as a portable fallback for broad legacy environment integration.
+* **Zero-Configuration Controller Injection:** Write standard Go context logging calls, and all serialization and propagation rules are resolved by the logging engine automatically under the hood.
+
 ---
 
 ## Running Tests
