@@ -14,7 +14,8 @@ Step-by-step lifecycle flow of an incoming HTTP request executing nested operati
 sequenceDiagram
     autonumber
     actor Client as Client Request
-    participant App as Your Go Application
+    participant Middleware as HTTP Middleware
+    participant App as Your Go Application (Handler)
     box rgba(255, 255, 255, 1) observability Facade
         participant Facade as global facade
         participant Logger as JSON Logger
@@ -23,42 +24,41 @@ sequenceDiagram
     end
     participant Console as Stdout / Console Output
 
-    Client->>App: Initiates HTTP request
-    App->>Facade: StartSpan("LoginHandler")
+    Client->>Middleware: Initiates HTTP request
+    Note over Middleware, Tracer: Automated request intercepting and span bootstrap
+    Middleware->>Facade: StartSpan("/users")
     Facade->>Tracer: Push parent Trace ID ("db3bda")
-    Tracer->>Console: Prints: [TRACE] Start LoginHandler trace_id=db3bda
+    Tracer->>Console: Prints: [TRACE] Start /users trace_id=db3bda
     
-    App->>Facade: Info("login request received")
+    Middleware->>App: Executes Handler (next.ServeHTTP)
+    App->>Facade: Info("processing signup")
     Facade->>Logger: Write log (requests active trace ID)
     Logger->>Tracer: GetActiveTraceID()
     Tracer-->>Logger: Returns "db3bda"
-    Logger->>Console: Output JSON: {"trace_id":"db3bda","msg":"login request received"}
+    Logger->>Console: Output JSON: {"trace_id":"db3bda","msg":"processing signup"}
 
     Note over App, Tracer: Nested Span Execution (e.g. Database Call)
     App->>Facade: StartSpan("DatabaseQuery")
     Facade->>Tracer: Push nested Trace ID ("1b1ff7")
     Tracer->>Console: Prints: [TRACE] Start DatabaseQuery trace_id=1b1ff7
-    App->>Facade: Info("executing select user query")
+    App->>Facade: Info("inserting user account")
     Facade->>Logger: Write log (requests active trace ID)
     Logger->>Tracer: GetActiveTraceID()
     Tracer-->>Logger: Returns "1b1ff7"
-    Logger->>Console: Output JSON: {"trace_id":"1b1ff7","msg":"executing select user query"}
+    Logger->>Console: Output JSON: {"trace_id":"1b1ff7","msg":"inserting user account"}
     App->>Facade: EndSpan(DBQuerySpan)
     Facade->>Tracer: Pop nested Trace ID ("1b1ff7")
     Tracer->>Console: Prints: [TRACE] End DatabaseQuery duration=15ms
 
     Note over App, Tracer: Restored Parent Context
-    App->>Facade: Info("user authenticated successfully")
-    Facade->>Logger: Write log (requests active trace ID)
-    Logger->>Tracer: GetActiveTraceID()
-    Tracer-->>Logger: Returns parent "db3bda"
-    Logger->>Console: Output JSON: {"trace_id":"db3bda","msg":"user authenticated successfully"}
+    App-->>Middleware: Returns Response (status 201)
 
-    App->>Facade: Counter("login_requests_total")
+    Note over Middleware, Metrics: Automated request completion logging & metrics
+    Middleware->>Facade: Counter("request_count")
     Facade->>Metrics: Record counter increment
-    App->>Facade: EndSpan(HandlerSpan)
+    Middleware->>Facade: EndSpan(HandlerSpan)
     Facade->>Tracer: Pop parent Trace ID ("db3bda")
-    Tracer->>Console: Prints: [TRACE] End LoginHandler duration=15ms
+    Tracer->>Console: Prints: [TRACE] End /users duration=15ms
 ```
 
 ### How It Works
@@ -74,9 +74,12 @@ sequenceDiagram
 ## Features
 
 * **Ultra-Fast JSON Logger:** A custom, reflection-free, structured logger that outputs directly to standard output or any custom `io.Writer`.
-* **LIFO Nesting Traces:** An advanced, thread-safe LIFO trace stack that propagates unique cryptographically secure hex trace IDs. Sub-traces (e.g. DB queries) automatically nested inside parent spans correctly pop to restore the parent's active trace context on completion.
+* **LIFO Nesting Traces:** An advanced, thread-safe LIFO trace stack that propagates unique cryptographically secure hex trace IDs. Sub-traces (e.g., DB queries) automatically nested inside parent spans correctly pop to restore the parent's active trace context on completion.
 * **Thread-Safe Metrics:** In-memory tracking for cumulative counters, arithmetic average latencies over multi-sample periods, and decimal gauges—all protected under concurrent mutex locks.
 * **Unified Facade API:** Clean, package-level package functions (`Info`, `Counter`, `StartSpan`) that automatically coordinate dynamic trace-log correlations seamlessly.
+* **HTTP Tracing Middleware:** Reusable request wrapping that manages span traces, captures response statuses, and timing-logs endpoints out-of-the-box.
+* **JSON Metrics Exporter:** Concurrent-safe live performance snapshots available under `/metrics` in a structured JSON payload.
+* **Dynamic Log Level Rotation:** Atomic, lock-free runtime changes using `SetLogLevel` to adjust verbosity during live incidents without container restarts.
 
 ---
 
@@ -89,15 +92,19 @@ orkai-observability/
 │       └── main.go         # API simulation entrypoint
 ├── observability/
 │   ├── config.go           # Configuration validation
+│   ├── exporter.go         # Metrics HTTP Exporter
 │   ├── logger.go           # High-performance structured JSON Logger
 │   ├── metrics.go          # Concurrent safe in-memory metrics
+│   ├── middleware.go       # Reusable HTTP Tracing & Logging Middleware
 │   ├── observability.go    # Global Facade & package-level API
 │   ├── tracer.go           # Thread-safe LIFO Trace Stack & cryptographics
 │   └── types.go            # Explicit types (Field, Span)
 ├── test/
 │   ├── config_test.go      # Configuration validation tests
-│   ├── logger_test.go      # JSON Logger tests
-│   ├── metrics_test.go     # InMemory Metrics tests
+│   ├── exporter_test.go    # Exporter endpoint tests
+│   ├── logger_test.go      # JSON Logger & dynamic levels tests
+│   ├── metrics_test.go     # InMemory Metrics & snapshots tests
+│   ├── middleware_test.go  # HTTP Middleware tests
 │   ├── observability_test.go     # Global Facade tests
 │   ├── tracer_test.go            # LIFO Trace Stack tests
 │   └── types_test.go             # Explicit types tests
@@ -254,7 +261,7 @@ observability.SetLogLevel("debug")
 Our tests are fully isolated inside the `/test` directory, exercising the public API of the package just like a real client application:
 
 ```bash
-go test .\test\ -v
+go test -v ./test/...
 ```
 
 ---
