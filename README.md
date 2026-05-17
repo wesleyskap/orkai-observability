@@ -113,7 +113,7 @@ orkai-observability/
 Initialize or import the module in your Go project:
 
 ```bash
-go get orkai-observability/observability
+go get github.com/wesleyskap/orkai-observability/observability
 ```
 
 ---
@@ -127,7 +127,7 @@ package main
 
 import (
 	"context"
-	"orkai-observability/observability"
+	"github.com/wesleyskap/orkai-observability/observability"
 	"time"
 )
 
@@ -193,6 +193,49 @@ Running the code above produces beautifully correlated, structured console logs:
 === METRICS ===
 user_requests_total: 1
 user_request_duration_latency_avg: 20.0051ms
+```
+
+---
+
+## Advanced Usage: HTTP Middleware & JSON Exporter
+
+Provides out-of-the-box integrations for high-performance HTTP web servers to automatically manage request trace lifecycles and expose scrapable telemetry.
+
+### 1. HTTP Middleware
+
+Simply wrap your router or mux handler with `observability.HTTPMiddleware` in a single line. It will automatically handle spans, log request start/end, and track request durations:
+
+```go
+package main
+
+import (
+	"net/http"
+	"github.com/wesleyskap/orkai-observability/observability"
+)
+
+func main() {
+	cfg := observability.Config{ServiceName: "api-service", Environment: "prod"}
+	_ = observability.Init(cfg)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/hello", func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("Hello, World!"))
+	})
+
+	// Wrap mux in a single line to enable full HTTP Tracing & Logging!
+	http.ListenAndServe(":8080", observability.HTTPMiddleware(mux))
+}
+```
+
+### 2. Metrics Exporter
+
+Expose `/metrics` in JSON format dynamically for scrapers or dashboards using `observability.MetricsHTTPHandler()`:
+
+```go
+mux := http.NewServeMux()
+// Exposes counters, gauges, and latencies as JSON snapshots
+mux.HandleFunc("/metrics", observability.MetricsHTTPHandler())
 ```
 
 ---

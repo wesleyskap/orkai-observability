@@ -8,6 +8,13 @@ import (
 	"time"
 )
 
+// MetricsSummary holds a snapshot copy of in-memory metrics.
+type MetricsSummary struct {
+	Counters  map[string]int64   `json:"counters"`
+	Latencies map[string]float64 `json:"latencies"`
+	Gauges    map[string]float64 `json:"gauges"`
+}
+
 // Metrics defines the interface for tracking metrics.
 //
 // Usage example:
@@ -17,6 +24,7 @@ type Metrics interface {
 	RecordLatency(name string, duration time.Duration)
 	SetGauge(name string, value float64)
 	Print()
+	GetSummary() MetricsSummary
 }
 
 // InMemoryMetrics implements Metrics saving values in memory.
@@ -126,4 +134,31 @@ func (m *InMemoryMetrics) printGauges() {
 		line := name + ": " + strconv.FormatFloat(val, 'f', -1, 64) + "\n"
 		_, _ = io.WriteString(m.writer, line)
 	}
+}
+
+// GetSummary returns a snapshot copy of all collected metrics.
+//
+// Usage example:
+//	summary := metrics.GetSummary()
+func (m *InMemoryMetrics) GetSummary() MetricsSummary {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	summary := MetricsSummary{
+		Counters:  make(map[string]int64),
+		Latencies: make(map[string]float64),
+		Gauges:    make(map[string]float64),
+	}
+	for k, v := range m.counters {
+		summary.Counters[k] = v
+	}
+	for k, v := range m.gauges {
+		summary.Gauges[k] = v
+	}
+	for k, v := range m.latencyTotals {
+		count := m.latencyCounts[k]
+		if count > 0 {
+			summary.Latencies[k] = float64(v.Milliseconds()) / float64(count)
+		}
+	}
+	return summary
 }
