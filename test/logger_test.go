@@ -48,3 +48,25 @@ func TestJSONLoggerError(t *testing.T) {
 		t.Fatalf("expected retry:3, got %s", output)
 	}
 }
+
+// TestJSONLoggerDynamicLevel asserts that logs are filtered and rotate levels dynamically.
+func TestJSONLoggerDynamicLevel(t *testing.T) {
+	fw := &FakeWriter{}
+	logger := observability.NewJSONLogger(fw, "test-service")
+	logger.SetLevel("warn")
+	logger.Info("should not print")
+	logger.Warn("should print")
+	output := fw.Buf.String()
+	if strings.Contains(output, "should not print") {
+		t.Errorf("expected info log to be filtered, got %s", output)
+	}
+	if !strings.Contains(output, "should print") {
+		t.Errorf("expected warn log to print, got %s", output)
+	}
+	fw.Buf.Reset()
+	logger.SetLevel("debug")
+	logger.Debug("now prints")
+	if !strings.Contains(fw.Buf.String(), "now prints") {
+		t.Errorf("expected debug log to print after rotation, got %s", fw.Buf.String())
+	}
+}

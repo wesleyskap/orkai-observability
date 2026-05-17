@@ -238,6 +238,15 @@ mux := http.NewServeMux()
 mux.HandleFunc("/metrics", observability.MetricsHTTPHandler())
 ```
 
+### 3. Dynamic Log Level Rotation
+
+Change the active log level dynamically at runtime (e.g., to troubleshoot a live incident) without restarting your process:
+
+```go
+// Changes the global log level to "debug" on the fly!
+observability.SetLogLevel("debug")
+```
+
 ---
 
 ## Running Tests
@@ -245,7 +254,7 @@ mux.HandleFunc("/metrics", observability.MetricsHTTPHandler())
 Our tests are fully isolated inside the `/test` directory, exercising the public API of the package just like a real client application:
 
 ```bash
-go test ./... -v
+go test .\test\ -v
 ```
 
 ---

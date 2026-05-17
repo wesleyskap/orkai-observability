@@ -29,6 +29,7 @@ var globalInstance *GlobalFacade
 //	err := observability.Init(cfg)
 func Init(cfg Config) error {
 	logger := NewJSONLogger(os.Stdout, cfg.ServiceName)
+	logger.SetLevel(cfg.LogLevel)
 	logger.SetTraceProvider(GetActiveTraceID)
 	globalInstance = &GlobalFacade{
 		Logger:  logger,
@@ -36,6 +37,16 @@ func Init(cfg Config) error {
 		Tracer:  NewLocalTracer(cfg.ServiceName),
 	}
 	return nil
+}
+
+// SetLogLevel delegates a log level change to the global logger.
+//
+// Usage example:
+//	observability.SetLogLevel("debug")
+func SetLogLevel(levelStr string) {
+	if globalInstance != nil {
+		globalInstance.Logger.SetLevel(levelStr)
+	}
 }
 
 // Info delegates an informational message to the global logger.

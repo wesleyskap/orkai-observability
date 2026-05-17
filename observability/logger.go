@@ -4,7 +4,23 @@ import (
 	"bytes"
 	"io"
 	"strconv"
+	"strings"
+	"sync/atomic"
 )
+
+const (
+	LevelDebug int32 = iota
+	LevelInfo
+	LevelWarn
+	LevelError
+)
+
+var levelMap = map[string]int32{
+	"debug": LevelDebug,
+	"info":  LevelInfo,
+	"warn":  LevelWarn,
+	"error": LevelError,
+}
 
 // Logger defines the interface for structured logging.
 //
@@ -15,6 +31,7 @@ type Logger interface {
 	Debug(msg string, fields ...Field)
 	Warn(msg string, fields ...Field)
 	Error(msg string, err error, fields ...Field)
+	SetLevel(levelStr string)
 }
 
 // JSONLogger is a structured logger that writes to an io.Writer.
@@ -25,6 +42,7 @@ type JSONLogger struct {
 	writer        io.Writer
 	service       string
 	traceProvider func() string
+	level         int32
 }
 
 // NewJSONLogger creates a new JSONLogger instance.
@@ -35,6 +53,7 @@ func NewJSONLogger(w io.Writer, service string) *JSONLogger {
 	logger := &JSONLogger{
 		writer:  w,
 		service: service,
+		level:   LevelInfo,
 	}
 	return logger
 }
@@ -48,11 +67,24 @@ func (l *JSONLogger) SetTraceProvider(provider func() string) {
 	return
 }
 
+// SetLevel changes the active log level dynamically in a thread-safe manner.
+//
+// Usage example:
+//	logger.SetLevel("debug")
+func (l *JSONLogger) SetLevel(levelStr string) {
+	if val, exists := levelMap[strings.ToLower(levelStr)]; exists {
+		atomic.StoreInt32(&l.level, val)
+	}
+}
+
 // Info logs an informational message.
 //
 // Usage example:
 //	logger.Info("processing request", observability.NewStringField("user", "admin"))
 func (l *JSONLogger) Info(msg string, fields ...Field) {
+	if atomic.LoadInt32(&l.level) > LevelInfo {
+		return
+	}
 	traceID := ""
 	if l.traceProvider != nil {
 		traceID = l.traceProvider()
@@ -66,6 +98,9 @@ func (l *JSONLogger) Info(msg string, fields ...Field) {
 // Usage example:
 //	logger.Debug("cache miss", observability.NewStringField("key", "user_1"))
 func (l *JSONLogger) Debug(msg string, fields ...Field) {
+	if atomic.LoadInt32(&l.level) > LevelDebug {
+		return
+	}
 	traceID := ""
 	if l.traceProvider != nil {
 		traceID = l.traceProvider()
@@ -79,6 +114,9 @@ func (l *JSONLogger) Debug(msg string, fields ...Field) {
 // Usage example:
 //	logger.Warn("slow query performance")
 func (l *JSONLogger) Warn(msg string, fields ...Field) {
+	if atomic.LoadInt32(&l.level) > LevelWarn {
+		return
+	}
 	traceID := ""
 	if l.traceProvider != nil {
 		traceID = l.traceProvider()
@@ -92,6 +130,9 @@ func (l *JSONLogger) Warn(msg string, fields ...Field) {
 // Usage example:
 //	logger.Error("connection failure", err)
 func (l *JSONLogger) Error(msg string, err error, fields ...Field) {
+	if atomic.LoadInt32(&l.level) > LevelError {
+		return
+	}
 	traceID := ""
 	if l.traceProvider != nil {
 		traceID = l.traceProvider()
