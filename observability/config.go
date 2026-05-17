@@ -7,6 +7,7 @@ import "errors"
 // Config defines the configuration settings for the observability package.
 //
 // Usage example:
+//
 //	cfg := observability.Config{
 //		ServiceName: "user-service",
 //		Environment: "production",
@@ -21,6 +22,7 @@ type Config struct {
 // ValidateConfig verifies that the configuration fields are not empty.
 //
 // Usage example:
+//
 //	err := observability.ValidateConfig(cfg)
 func ValidateConfig(cfg Config) error {
 	if cfg.ServiceName == "" {

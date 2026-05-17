@@ -5,6 +5,7 @@ import "time"
 // Field represents a key-value log attribute with explicit types.
 //
 // Usage example:
+//
 //	f := observability.Field{
 //		Key:      "role",
 //		StrValue: "admin",
@@ -20,6 +21,7 @@ type Field struct {
 // Span represents a single trace segment capturing details and duration.
 //
 // Usage example:
+//
 //	s := observability.Span{
 //		TraceID:   "db3bda",
 //		Name:      "MySQLQuery",
@@ -34,6 +36,7 @@ type Span struct {
 // NewStringField constructs a Field representing a string value.
 //
 // Usage example:
+//
 //	f := observability.NewStringField("user_id", "123")
 func NewStringField(key string, value string) Field {
 	field := Field{
@@ -47,6 +50,7 @@ func NewStringField(key string, value string) Field {
 // NewIntField constructs a Field representing an integer value.
 //
 // Usage example:
+//
 //	f := observability.NewIntField("bytes_sent", 2048)
 func NewIntField(key string, value int64) Field {
 	field := Field{

@@ -18,6 +18,7 @@ type MetricsSummary struct {
 // Metrics defines the interface for tracking metrics.
 //
 // Usage example:
+//
 //	var m observability.Metrics = observability.NewInMemoryMetrics("auth-service")
 type Metrics interface {
 	IncCounter(name string)
@@ -30,6 +31,7 @@ type Metrics interface {
 // InMemoryMetrics implements Metrics saving values in memory.
 //
 // Usage example:
+//
 //	metrics := observability.NewInMemoryMetrics("user-service")
 type InMemoryMetrics struct {
 	mu            sync.Mutex
@@ -44,6 +46,7 @@ type InMemoryMetrics struct {
 // NewInMemoryMetrics constructs an InMemoryMetrics instance.
 //
 // Usage example:
+//
 //	metrics := observability.NewInMemoryMetrics("auth-service")
 func NewInMemoryMetrics(service string) *InMemoryMetrics {
 	metrics := &InMemoryMetrics{
@@ -60,6 +63,7 @@ func NewInMemoryMetrics(service string) *InMemoryMetrics {
 // SetWriter configures a custom output writer for testing or redirection.
 //
 // Usage example:
+//
 //	metrics.SetWriter(buf)
 func (m *InMemoryMetrics) SetWriter(w io.Writer) {
 	m.writer = w
@@ -69,6 +73,7 @@ func (m *InMemoryMetrics) SetWriter(w io.Writer) {
 // IncCounter increments a counter metric.
 //
 // Usage example:
+//
 //	metrics.IncCounter("http_requests_total")
 func (m *InMemoryMetrics) IncCounter(name string) {
 	m.mu.Lock()
@@ -79,6 +84,7 @@ func (m *InMemoryMetrics) IncCounter(name string) {
 // RecordLatency records a latency value.
 //
 // Usage example:
+//
 //	metrics.RecordLatency("db_query_duration", 15*time.Millisecond)
 func (m *InMemoryMetrics) RecordLatency(name string, duration time.Duration) {
 	m.mu.Lock()
@@ -90,6 +96,7 @@ func (m *InMemoryMetrics) RecordLatency(name string, duration time.Duration) {
 // SetGauge sets a gauge value.
 //
 // Usage example:
+//
 //	metrics.SetGauge("memory_usage_bytes", 52428800)
 func (m *InMemoryMetrics) SetGauge(name string, value float64) {
 	m.mu.Lock()
@@ -100,6 +107,7 @@ func (m *InMemoryMetrics) SetGauge(name string, value float64) {
 // Print outputs the metric summaries.
 //
 // Usage example:
+//
 //	metrics.Print()
 func (m *InMemoryMetrics) Print() {
 	m.mu.Lock()
@@ -139,6 +147,7 @@ func (m *InMemoryMetrics) printGauges() {
 // GetSummary returns a snapshot copy of all collected metrics.
 //
 // Usage example:
+//
 //	summary := metrics.GetSummary()
 func (m *InMemoryMetrics) GetSummary() MetricsSummary {
 	m.mu.Lock()

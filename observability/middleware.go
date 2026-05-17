@@ -26,6 +26,7 @@ func (rw *responseWriterWrapper) WriteHeader(code int) {
 // HTTPMiddleware wraps an http.Handler with trace context, automated request/response logging, and latency recording.
 //
 // Usage example:
+//
 //	mux := http.NewServeMux()
 //	loggedMux := observability.HTTPMiddleware(mux)
 func HTTPMiddleware(next http.Handler) http.Handler {

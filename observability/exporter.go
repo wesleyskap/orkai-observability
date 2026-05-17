@@ -8,6 +8,7 @@ import (
 // MetricsHTTPHandler returns an http.HandlerFunc that exports the active metrics snapshot in JSON format.
 //
 // Usage example:
+//
 //	mux := http.NewServeMux()
 //	mux.HandleFunc("/metrics", observability.MetricsHTTPHandler())
 func MetricsHTTPHandler() http.HandlerFunc {

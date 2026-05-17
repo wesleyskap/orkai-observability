@@ -9,6 +9,7 @@ import (
 // GlobalFacade controls the global logger, metrics, and tracer.
 //
 // Usage example:
+//
 //	facade := &observability.GlobalFacade{
 //		Logger:  logger,
 //		Metrics: metrics,
@@ -26,6 +27,7 @@ var globalInstance *GlobalFacade
 // Init initializes the global observability facade instance.
 //
 // Usage example:
+//
 //	err := observability.Init(cfg)
 func Init(cfg Config) error {
 	logger := NewJSONLogger(os.Stdout, cfg.ServiceName)
@@ -42,6 +44,7 @@ func Init(cfg Config) error {
 // SetLogLevel delegates a log level change to the global logger.
 //
 // Usage example:
+//
 //	observability.SetLogLevel("debug")
 func SetLogLevel(levelStr string) {
 	if globalInstance != nil {
@@ -52,6 +55,7 @@ func SetLogLevel(levelStr string) {
 // Info delegates an informational message to the global logger.
 //
 // Usage example:
+//
 //	observability.Info("processing order", observability.NewStringField("id", "321"))
 func Info(msg string, fields ...Field) {
 	if globalInstance != nil {
@@ -62,6 +66,7 @@ func Info(msg string, fields ...Field) {
 // Debug delegates a debug message to the global logger.
 //
 // Usage example:
+//
 //	observability.Debug("cache lookup result", observability.NewStringField("status", "hit"))
 func Debug(msg string, fields ...Field) {
 	if globalInstance != nil {
@@ -72,6 +77,7 @@ func Debug(msg string, fields ...Field) {
 // Warn delegates a warning message to the global logger.
 //
 // Usage example:
+//
 //	observability.Warn("deprecated API route called")
 func Warn(msg string, fields ...Field) {
 	if globalInstance != nil {
@@ -82,6 +88,7 @@ func Warn(msg string, fields ...Field) {
 // Error delegates an error message to the global logger.
 //
 // Usage example:
+//
 //	observability.Error("failed to process credit card payment", err)
 func Error(msg string, err error, fields ...Field) {
 	if globalInstance != nil {
@@ -92,6 +99,7 @@ func Error(msg string, err error, fields ...Field) {
 // Counter increments the global counter metric.
 //
 // Usage example:
+//
 //	observability.Counter("http_requests_total")
 func Counter(name string) {
 	if globalInstance != nil {
@@ -102,6 +110,7 @@ func Counter(name string) {
 // Latency records a latency metric globally.
 //
 // Usage example:
+//
 //	observability.Latency("db_query_duration", duration)
 func Latency(name string, d time.Duration) {
 	if globalInstance != nil {
@@ -112,6 +121,7 @@ func Latency(name string, d time.Duration) {
 // Gauge sets a gauge metric globally.
 //
 // Usage example:
+//
 //	observability.Gauge("thread_count", 42)
 func Gauge(name string, value float64) {
 	if globalInstance != nil {
@@ -122,6 +132,7 @@ func Gauge(name string, value float64) {
 // StartSpan starts a global span trace.
 //
 // Usage example:
+//
 //	ctx, span := observability.StartSpan(context.Background(), "DBQuery")
 func StartSpan(ctx context.Context, name string) (context.Context, Span) {
 	if globalInstance != nil {
@@ -133,6 +144,7 @@ func StartSpan(ctx context.Context, name string) (context.Context, Span) {
 // EndSpan ends a global span trace.
 //
 // Usage example:
+//
 //	observability.EndSpan(span)
 func EndSpan(span Span) {
 	if globalInstance != nil {
@@ -143,6 +155,7 @@ func EndSpan(span Span) {
 // Dump prints all metrics collected globally.
 //
 // Usage example:
+//
 //	observability.Dump()
 func Dump() {
 	if globalInstance != nil {
