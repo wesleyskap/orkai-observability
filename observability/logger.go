@@ -166,7 +166,11 @@ func (l *JSONLogger) Error(msg string, err error, fields ...Field) {
 	if l.traceProvider != nil {
 		traceID = l.traceProvider()
 	}
+	stack := captureStackTrace()
 	errFields := append(fields, NewStringField("error", err.Error()))
+	if stack != "" {
+		errFields = append(errFields, NewStringField("stack_trace", stack))
+	}
 	jsonStr := formatJSON("ERROR", l.service, traceID, msg, errFields)
 	_, _ = l.writer.Write([]byte(jsonStr))
 }
@@ -213,4 +217,24 @@ func isSensitiveKey(key string) bool {
 		}
 	}
 	return false
+}
+
+// captureStackTrace inspects the Go runtime stack and constructs a compact formatted frame string.
+func captureStackTrace() string {
+	pcs := make([]uintptr, 8)
+	n := runtime.Callers(3, pcs)
+	var builder strings.Builder
+	frames := runtime.CallersFrames(pcs[:n])
+	for {
+		frame, more := frames.Next()
+		if frame.Function != "" {
+			if builder.Len() > 0 {
+				builder.WriteString("; ")
+			}
+			builder.WriteString(frame.Function + ":" + strconv.Itoa(frame.Line))
+		}
+		if !more {
+			return builder.String()
+		}
+	}
 }

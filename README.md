@@ -295,6 +295,20 @@ Add custom PII keywords to the global log sanitization list at runtime:
 observability.AddSensitiveKeys("socialSecurityNumber", "apiKey")
 ```
 
+### 6. Structured Error Stack Trace Capture
+
+Accelerate incident investigations by automatically capturing Go call stack traces when recording errors. The package inspects runtime stack frames and appends a clean, compact string under the `"stack_trace"` field:
+
+```go
+// Captures stack frames automatically when logging an error
+observability.Error("failed database operation", err, 
+	observability.NewIntField("retry_count", 3),
+)
+
+// Serializes under the "stack_trace" JSON key:
+// {"level":"ERROR","msg":"failed database operation","error":"timeout","stack_trace":"main.queryUser:42; main.handleRequest:20","retry_count":3}
+```
+
 ---
 
 ## Running Tests
@@ -302,7 +316,71 @@ observability.AddSensitiveKeys("socialSecurityNumber", "apiKey")
 Our tests are fully isolated inside the `/test` directory, exercising the public API of the package just like a real client application:
 
 ```bash
-go test -v ./test/...
+$ go test -v ./test/...
+=== RUN   TestValidateConfigValid
+--- PASS: TestValidateConfigValid (0.00s)
+=== RUN   TestValidateConfigEmptyService
+--- PASS: TestValidateConfigEmptyService (0.00s)
+=== RUN   TestValidateConfigEmptyEnv
+--- PASS: TestValidateConfigEmptyEnv (0.00s)
+=== RUN   TestMetricsHTTPHandlerSuccess
+--- PASS: TestMetricsHTTPHandlerSuccess (0.00s)
+=== RUN   TestMetricsHTTPHandlerPrometheus
+--- PASS: TestMetricsHTTPHandlerPrometheus (0.00s)
+=== RUN   TestJSONLoggerInfo
+--- PASS: TestJSONLoggerInfo (0.00s)
+=== RUN   TestJSONLoggerError
+--- PASS: TestJSONLoggerError (0.00s)
+=== RUN   TestJSONLoggerDynamicLevel
+--- PASS: TestJSONLoggerDynamicLevel (0.00s)
+=== RUN   TestJSONLoggerPIIMasking
+--- PASS: TestJSONLoggerPIIMasking (0.00s)
+=== RUN   TestJSONLoggerErrorStackTrace
+--- PASS: TestJSONLoggerErrorStackTrace (0.00s)
+=== RUN   TestLGPDCompliance
+--- PASS: TestLGPDCompliance (0.00s)
+=== RUN   TestMetricsIncrement
+--- PASS: TestMetricsIncrement (0.00s)
+=== RUN   TestMetricsLatency
+--- PASS: TestMetricsLatency (0.00s)
+=== RUN   TestMetricsGauge
+--- PASS: TestMetricsGauge (0.00s)
+=== RUN   TestHTTPMiddlewareNewTrace
+[TRACE] Start /users trace_id=1eca46527b66ae60
+{"level":"INFO","service":"test","trace_id":"1eca46527b66ae60","msg":"incoming request started","method":"POST","path":"/users"}
+{"level":"INFO","service":"test","trace_id":"1eca46527b66ae60","msg":"outgoing request finished","method":"POST","path":"/users","status":201,"duration_ms":0}
+[TRACE] End /users duration=0s
+--- PASS: TestHTTPMiddlewareNewTrace (0.00s)
+=== RUN   TestHTTPMiddlewareResumedTrace
+{"level":"INFO","service":"test","trace_id":"db3bda","msg":"incoming request started","method":"GET","path":"/profile"}
+{"level":"INFO","service":"test","trace_id":"db3bda","msg":"outgoing request finished","method":"GET","path":"/profile","status":200,"duration_ms":0}
+[TRACE] End /profile duration=0s
+--- PASS: TestHTTPMiddlewareResumedTrace (0.00s)
+=== RUN   TestGlobalFacadeInit
+--- PASS: TestGlobalFacadeInit (0.00s)
+=== RUN   TestGlobalFacadeDelegation
+{"level":"INFO","service":"test-service","msg":"delegated log","key":"val"}
+[TRACE] Start test-span trace_id=b58c6e59f1dc6d9f
+[TRACE] End test-span duration=0s
+=== METRICS ===
+test_count: 1
+test_latency_latency_avg: 10ms
+test_gauge: 10.5
+--- PASS: TestGlobalFacadeDelegation (0.00s)
+=== RUN   TestTracerStart
+--- PASS: TestTracerStart (0.00s)
+=== RUN   TestTracerEnd
+--- PASS: TestTracerEnd (0.00s)
+=== RUN   TestTracingRoundTripperNoActiveTrace
+--- PASS: TestTracingRoundTripperNoActiveTrace (0.00s)
+=== RUN   TestTracingRoundTripperActiveTrace
+--- PASS: TestTracingRoundTripperActiveTrace (0.00s)
+=== RUN   TestNewStringField
+--- PASS: TestNewStringField (0.00s)
+=== RUN   TestNewIntField
+--- PASS: TestNewIntField (0.00s)
+PASS
+ok  	github.com/wesleyskap/orkai-observability/test	0.700s
 ```
 
 ---

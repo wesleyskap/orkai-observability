@@ -90,3 +90,36 @@ func TestJSONLoggerPIIMasking(t *testing.T) {
 		t.Errorf("expected socialSecurityNumber to be masked, got %s", output2)
 	}
 }
+
+// TestJSONLoggerErrorStackTrace verifies that Error logs capture and serialize the stack trace.
+func TestJSONLoggerErrorStackTrace(t *testing.T) {
+	fw := &FakeWriter{}
+	logger := observability.NewJSONLogger(fw, "test-service")
+	logger.Error("failed task", errors.New("internal failure"))
+	output := fw.Buf.String()
+	if !strings.Contains(output, `"stack_trace"`) {
+		t.Fatalf("expected stack_trace key in JSON log, got %s", output)
+	}
+	if !strings.Contains(output, "TestJSONLoggerErrorStackTrace") {
+		t.Errorf("expected calling function in stack trace, got %s", output)
+	}
+}
+
+// TestLGPDCompliance simulates a strict LGPD/GDPR compliance scan asserting sensitive user fields are masked.
+func TestLGPDCompliance(t *testing.T) {
+	fw := &FakeWriter{}
+	logger := observability.NewJSONLogger(fw, "user-service")
+	observability.AddSensitiveKeys("phone", "address")
+	logger.Info("user signup",
+		observability.NewStringField("cpf", "123-00"),
+		observability.NewStringField("phone", "+55119999"),
+		observability.NewStringField("user_id", "usr_99"),
+	)
+	out := fw.Buf.String()
+	if !strings.Contains(out, `"cpf":"[MASKED]"`) || !strings.Contains(out, `"phone":"[MASKED]"`) {
+		t.Errorf("expected PII to be masked, got: %s", out)
+	}
+	if !strings.Contains(out, `"user_id":"usr_99"`) {
+		t.Errorf("expected user_id to be plain text, got: %s", out)
+	}
+}

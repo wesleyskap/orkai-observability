@@ -6,7 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [1.0.12] - 2026-05-17
+## [1.3.0] - 2026-05-17
+
+### Added
+- **Structured Error Stack Trace Capture:** Implemented dynamic Go execution call frame inspection inside the structured JSON logger. When calling `observability.Error`, the logger uses `runtime.Callers` and `runtime.CallersFrames` to capture, format, and inject call frames under the `"stack_trace"` JSON key.
+
+  ```go
+  // No signature or registration changes:
+  observability.Error("failed db select", err)
+
+  // Automatically captures call frames:
+  // {"level":"ERROR","msg":"failed db select","error":"timeout","stack_trace":"main.queryUser:42; main.main:12"}
+  ```
+
+- **Stack Trace Test Coverage:** Added unit test coverage under `test/logger_test.go` (`TestJSONLoggerErrorStackTrace`) confirming runtime calling frame capture and format correctness.
+
+### Changed
+- **Documentation:** Updated the README to describe the new automatic error stack trace capture capabilities.
+
+---
+
+## [1.2.0] - 2026-05-17
 
 ### Added
 - **PII Log Masking & Sanitization:** Integrated automated Personally Identifiable Information (PII) masking inside the structured JSON logger. Key names containing keywords like `password`, `token`, `secret`, `cvv`, `card`, `cpf`, or `email` automatically have their values replaced with `"[MASKED]"`.
