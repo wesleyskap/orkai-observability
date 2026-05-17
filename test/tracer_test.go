@@ -14,6 +14,7 @@ func TestTracerStart(t *testing.T) {
 	buf := &bytes.Buffer{}
 	tracer.SetWriter(buf)
 	ctx, span := tracer.StartTrace(context.Background(), "test-span")
+	defer tracer.EndTrace(span)
 	if span.Name != "test-span" {
 		t.Fatalf("expected span name 'test-span', got %s", span.Name)
 	}
