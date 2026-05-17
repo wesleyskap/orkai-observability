@@ -1,4 +1,4 @@
-[![Go Reference](https://pkg.go.dev/badge/github.com/wesleyskap/orkai-observability.svg)](https://pkg.go.dev/github.com/wesleyskap/orkai-observability)     [![Go Report Card](https://goreportcard.com/badge/github.com/wesleyskap/orkai-observability)](https://goreportcard.com/report/github.com/wesleyskap/orkai-observability)
+[![Go Reference](https://pkg.go.dev/badge/github.com/wesleyskap/orkai-observability.svg)](https://pkg.go.dev/github.com/wesleyskap/orkai-observability)     [![Go Report Card](https://goreportcard.com/badge/github.com/wesleyskap/orkai-observability)](https://goreportcard.com/report/github.com/wesleyskap/orkai-observability)     [![Go CI](https://github.com/wesleyskap/orkai-observability/actions/workflows/go.yml/badge.svg)](https://github.com/wesleyskap/orkai-observability/actions/workflows/go.yml)
 
 
 # Orkai Observability
@@ -453,6 +453,45 @@ sequenceDiagram
 1. **Lock-Free Replenishment Performance:** The internal mathematical time delta calculation completely avoids resource-intensive background goroutines or ticking timers, ensuring near-zero processing overhead under heavy concurrency.
 2. **Intelligent Diagnostic Sampling:** The 10% sampling algorithm ensures that severe infinite logging loops (e.g. rapid database outages) do not choke container CPU resources or saturate centralized log ingestion storage (Elasticsearch, Loki, Datadog), while still preserving critical trace context samples for Grafana dashboards.
 
+### 9. Multi-Dimensional Metrics (Labels/Tags)
+
+Perform deep diagnostic drill-downs by segmenting metrics using labels (tags) matching modern TSDB (Time Series Databases) like Prometheus:
+
+```go
+// Increment a counter segmented by method and HTTP status code
+observability.CounterWithLabels("http_requests_total", map[string]string{
+	"method": "POST",
+	"status": "201",
+})
+
+// Record average latency segmented by API handler
+observability.LatencyWithLabels("http_request_duration_ms", 45*time.Millisecond, map[string]string{
+	"handler": "user_signup",
+})
+
+// Set gauge segmented by database cluster node
+observability.GaugeWithLabels("db_connections_active", 14, map[string]string{
+	"node": "primary-01",
+})
+```
+
+#### Scrapable Formats
+
+1. **Prometheus Exposition Text Format:** When queried via `GET /metrics?format=prometheus`, the exporter formats labels alphabetically and splits base names for helper tags perfectly:
+   ```text
+   # HELP http_requests_total Cumulative counter of http_requests_total
+   # TYPE http_requests_total counter
+   http_requests_total{method="POST",status="201"} 1
+   ```
+2. **JSON Snapshot Format:** Standard queries render beautifully grouped keys compatible with JSON decoders:
+   ```json
+   {
+     "counters": {
+       "http_requests_total{method=\"POST\",status=\"201\"}": 1
+     }
+   }
+   ```
+
 ---
 
 ## Running Tests
@@ -471,6 +510,8 @@ $ go test -v ./test/...
 --- PASS: TestMetricsHTTPHandlerSuccess (0.00s)
 === RUN   TestMetricsHTTPHandlerPrometheus
 --- PASS: TestMetricsHTTPHandlerPrometheus (0.00s)
+=== RUN   TestMetricsHTTPHandlerPrometheusLabels
+--- PASS: TestMetricsHTTPHandlerPrometheusLabels (0.00s)
 === RUN   TestJSONLoggerInfo
 --- PASS: TestJSONLoggerInfo (0.00s)
 === RUN   TestJSONLoggerError
@@ -495,10 +536,16 @@ $ go test -v ./test/...
 --- PASS: TestMetricsLatency (0.00s)
 === RUN   TestMetricsGauge
 --- PASS: TestMetricsGauge (0.00s)
+=== RUN   TestMetricsCounterWithLabels
+--- PASS: TestMetricsCounterWithLabels (0.00s)
+=== RUN   TestMetricsLatencyWithLabels
+--- PASS: TestMetricsLatencyWithLabels (0.00s)
+=== RUN   TestMetricsGaugeWithLabels
+--- PASS: TestMetricsGaugeWithLabels (0.00s)
 === RUN   TestHTTPMiddlewareNewTrace
-[TRACE] Start /users trace_id=4d61c958dea64c18
-{"level":"INFO","service":"test","trace_id":"4d61c958dea64c18","msg":"incoming request started","method":"POST","path":"/users"}
-{"level":"INFO","service":"test","trace_id":"4d61c958dea64c18","msg":"outgoing request finished","method":"POST","path":"/users","status":201,"duration_ms":0}
+[TRACE] Start /users trace_id=d866d73440ae9367
+{"level":"INFO","service":"test","trace_id":"d866d73440ae9367","msg":"incoming request started","method":"POST","path":"/users"}
+{"level":"INFO","service":"test","trace_id":"d866d73440ae9367","msg":"outgoing request finished","method":"POST","path":"/users","status":201,"duration_ms":0}
 [TRACE] End /users duration=0s
 --- PASS: TestHTTPMiddlewareNewTrace (0.00s)
 === RUN   TestHTTPMiddlewareResumedTrace
@@ -510,7 +557,7 @@ $ go test -v ./test/...
 --- PASS: TestGlobalFacadeInit (0.00s)
 === RUN   TestGlobalFacadeDelegation
 {"level":"INFO","service":"test-service","msg":"delegated log","key":"val"}
-[TRACE] Start test-span trace_id=6d20b2f1131c4621
+[TRACE] Start test-span trace_id=b35091c721bd3132
 [TRACE] End test-span duration=0s
 === METRICS ===
 test_count: 1
@@ -530,7 +577,7 @@ test_gauge: 10.5
 === RUN   TestNewIntField
 --- PASS: TestNewIntField (0.00s)
 PASS
-ok  	github.com/wesleyskap/orkai-observability/test	0.721s
+ok  	github.com/wesleyskap/orkai-observability/test	0.704s
 ```
 
 ---

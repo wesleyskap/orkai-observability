@@ -155,6 +155,13 @@ func Counter(name string) {
 	}
 }
 
+// CounterWithLabels increments the global counter metric with labels.
+func CounterWithLabels(name string, labels map[string]string) {
+	if globalInstance != nil {
+		globalInstance.Metrics.IncCounterWithLabels(name, labels)
+	}
+}
+
 // Latency records a latency metric globally.
 //
 // Usage example:
@@ -166,6 +173,13 @@ func Latency(name string, d time.Duration) {
 	}
 }
 
+// LatencyWithLabels records a latency metric with labels globally.
+func LatencyWithLabels(name string, d time.Duration, labels map[string]string) {
+	if globalInstance != nil {
+		globalInstance.Metrics.RecordLatencyWithLabels(name, d, labels)
+	}
+}
+
 // Gauge sets a gauge metric globally.
 //
 // Usage example:
@@ -174,6 +188,13 @@ func Latency(name string, d time.Duration) {
 func Gauge(name string, value float64) {
 	if globalInstance != nil {
 		globalInstance.Metrics.SetGauge(name, value)
+	}
+}
+
+// GaugeWithLabels sets a gauge metric with labels globally.
+func GaugeWithLabels(name string, value float64, labels map[string]string) {
+	if globalInstance != nil {
+		globalInstance.Metrics.SetGaugeWithLabels(name, value, labels)
 	}
 }
 

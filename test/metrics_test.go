@@ -60,3 +60,40 @@ func TestMetricsGauge(t *testing.T) {
 		t.Errorf("expected summary gauge to be 42.5, got %f", val)
 	}
 }
+
+// TestMetricsCounterWithLabels asserts labeled counter increments correctly.
+func TestMetricsCounterWithLabels(t *testing.T) {
+	metrics := observability.NewInMemoryMetrics("test-service")
+	labels := map[string]string{"method": "POST", "status": "201"}
+	metrics.IncCounterWithLabels("http_requests_total", labels)
+	summary := metrics.GetSummary()
+	expectedKey := `http_requests_total{method="POST",status="201"}`
+	if val := summary.Counters[expectedKey]; val != 1 {
+		t.Errorf("expected counter %s to be 1, got %d", expectedKey, val)
+	}
+}
+
+// TestMetricsLatencyWithLabels asserts average latency calculation with labels.
+func TestMetricsLatencyWithLabels(t *testing.T) {
+	metrics := observability.NewInMemoryMetrics("test-service")
+	labels := map[string]string{"handler": "auth"}
+	metrics.RecordLatencyWithLabels("http_request_duration_ms", 50*time.Millisecond, labels)
+	metrics.RecordLatencyWithLabels("http_request_duration_ms", 150*time.Millisecond, labels)
+	summary := metrics.GetSummary()
+	expectedKey := `http_request_duration_ms{handler="auth"}`
+	if val := summary.Latencies[expectedKey]; val != 100.0 {
+		t.Errorf("expected latency %s to be 100.0, got %f", expectedKey, val)
+	}
+}
+
+// TestMetricsGaugeWithLabels asserts labeled gauge setting correctly.
+func TestMetricsGaugeWithLabels(t *testing.T) {
+	metrics := observability.NewInMemoryMetrics("test-service")
+	labels := map[string]string{"db": "main"}
+	metrics.SetGaugeWithLabels("db_connections", 10.0, labels)
+	summary := metrics.GetSummary()
+	expectedKey := `db_connections{db="main"}`
+	if val := summary.Gauges[expectedKey]; val != 10.0 {
+		t.Errorf("expected gauge %s to be 10.0, got %f", expectedKey, val)
+	}
+}

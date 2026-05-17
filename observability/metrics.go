@@ -3,7 +3,9 @@ package observability
 import (
 	"io"
 	"os"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -22,8 +24,11 @@ type MetricsSummary struct {
 //	var m observability.Metrics = observability.NewInMemoryMetrics("auth-service")
 type Metrics interface {
 	IncCounter(name string)
+	IncCounterWithLabels(name string, labels map[string]string)
 	RecordLatency(name string, duration time.Duration)
+	RecordLatencyWithLabels(name string, duration time.Duration, labels map[string]string)
 	SetGauge(name string, value float64)
+	SetGaugeWithLabels(name string, value float64, labels map[string]string)
 	Print()
 	GetSummary() MetricsSummary
 }
@@ -170,4 +175,39 @@ func (m *InMemoryMetrics) GetSummary() MetricsSummary {
 		}
 	}
 	return summary
+}
+
+// formatMetricKey generates a deterministic, sorted string representation of name and labels.
+func formatMetricKey(name string, labels map[string]string) string {
+	if len(labels) == 0 {
+		return name
+	}
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, len(keys))
+	for i, k := range keys {
+		parts[i] = k + `="` + labels[k] + `"`
+	}
+	return name + "{" + strings.Join(parts, ",") + "}"
+}
+
+// IncCounterWithLabels increments a counter with labels.
+func (m *InMemoryMetrics) IncCounterWithLabels(name string, labels map[string]string) {
+	key := formatMetricKey(name, labels)
+	m.IncCounter(key)
+}
+
+// RecordLatencyWithLabels records latency with labels.
+func (m *InMemoryMetrics) RecordLatencyWithLabels(name string, duration time.Duration, labels map[string]string) {
+	key := formatMetricKey(name, labels)
+	m.RecordLatency(key, duration)
+}
+
+// SetGaugeWithLabels sets gauge with labels.
+func (m *InMemoryMetrics) SetGaugeWithLabels(name string, value float64, labels map[string]string) {
+	key := formatMetricKey(name, labels)
+	m.SetGauge(key, value)
 }

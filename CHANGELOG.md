@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.6.0] - 2026-05-17
+
+### Added
+- **Multi-Dimensional Metrics (Labels/Tags):** Implemented multi-dimensional metric support for counters, latencies, and gauges. Developers can now group and segment operational telemetry using key-value tag dimensions (labels), mimicking standard production TSDB architectures.
+- **Prometheus Labeled Exposition:** Adapted the plain-text metrics exporter to split base metrics and alphabetize labels seamlessly for PromQL scraper ingestion.
+- **Unified Facade Delegators:** Exposed clean `CounterWithLabels`, `LatencyWithLabels`, and `GaugeWithLabels` methods directly on the global facade.
+- **Test-Driven Telemetry:** Extended the suite with dedicated unit tests in `test/metrics_test.go` and integration validation inside `test/exporter_test.go` to assert correct label sorting and exposition formatting.
+
+---
+
 ## [1.5.0] - 2026-05-17
 
 ### Added

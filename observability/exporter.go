@@ -50,27 +50,38 @@ func writePrometheusMetrics(w http.ResponseWriter, summary MetricsSummary) {
 // writeCounters formats and writes all cumulative counters.
 func writeCounters(w io.Writer, counters map[string]int64) {
 	for name, val := range counters {
-		_, _ = fmt.Fprintf(w, "# HELP %s Cumulative counter of %s\n", name, name)
-		_, _ = fmt.Fprintf(w, "# TYPE %s counter\n", name)
-		_, _ = fmt.Fprintf(w, "%s %d\n", name, val)
+		base, labels := parseMetricKey(name)
+		_, _ = fmt.Fprintf(w, "# HELP %s Cumulative counter of %s\n", base, base)
+		_, _ = fmt.Fprintf(w, "# TYPE %s counter\n", base)
+		_, _ = fmt.Fprintf(w, "%s%s %d\n", base, labels, val)
 	}
 }
 
 // writeGauges formats and writes all decimal gauges.
 func writeGauges(w io.Writer, gauges map[string]float64) {
 	for name, val := range gauges {
-		_, _ = fmt.Fprintf(w, "# HELP %s Current %s\n", name, name)
-		_, _ = fmt.Fprintf(w, "# TYPE %s gauge\n", name)
-		_, _ = fmt.Fprintf(w, "%s %g\n", name, val)
+		base, labels := parseMetricKey(name)
+		_, _ = fmt.Fprintf(w, "# HELP %s Current %s\n", base, base)
+		_, _ = fmt.Fprintf(w, "# TYPE %s gauge\n", base)
+		_, _ = fmt.Fprintf(w, "%s%s %g\n", base, labels, val)
 	}
 }
 
 // writeLatencies formats and writes all average latency metrics in milliseconds.
 func writeLatencies(w io.Writer, latencies map[string]float64) {
 	for name, val := range latencies {
-		fullName := name + "_latency_avg"
-		_, _ = fmt.Fprintf(w, "# HELP %s Average latency of %s in milliseconds\n", fullName, name)
+		base, labels := parseMetricKey(name)
+		fullName := base + "_latency_avg"
+		_, _ = fmt.Fprintf(w, "# HELP %s Average latency of %s in milliseconds\n", fullName, base)
 		_, _ = fmt.Fprintf(w, "# TYPE %s gauge\n", fullName)
-		_, _ = fmt.Fprintf(w, "%s %g\n", fullName, val)
+		_, _ = fmt.Fprintf(w, "%s%s %g\n", fullName, labels, val)
 	}
+}
+
+// parseMetricKey splits a formatted metric name into the base name and labels block.
+func parseMetricKey(key string) (string, string) {
+	if idx := strings.Index(key, "{"); idx != -1 {
+		return key[:idx], key[idx:]
+	}
+	return key, ""
 }

@@ -56,3 +56,25 @@ func TestMetricsHTTPHandlerPrometheus(t *testing.T) {
 		t.Errorf("expected test_gauge value in body: %s", body)
 	}
 }
+
+// TestMetricsHTTPHandlerPrometheusLabels asserts Prometheus format with labels is formatted correctly.
+func TestMetricsHTTPHandlerPrometheusLabels(t *testing.T) {
+	cfg := observability.Config{ServiceName: "test", Environment: "dev"}
+	_ = observability.Init(cfg)
+	observability.CounterWithLabels("api_requests", map[string]string{"path": "/users", "method": "GET"})
+	handler := observability.MetricsHTTPHandler()
+	req := httptest.NewRequest(http.MethodGet, "/metrics?format=prometheus", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "# TYPE api_requests counter") {
+		t.Errorf("expected base counter type, got: %s", body)
+	}
+	expectedLine := `api_requests{method="GET",path="/users"} 1`
+	if !strings.Contains(body, expectedLine) {
+		t.Errorf("expected formatted label line '%s', got: %s", expectedLine, body)
+	}
+}
