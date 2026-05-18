@@ -37,6 +37,9 @@ func Init(cfg Config) error {
 		limiter := NewLogRateLimiter(cfg.RateLimitBurst, cfg.RateLimitRate, true)
 		logger.SetRateLimiter(limiter)
 	}
+	if cfg.EnableAsyncLog {
+		logger.ConfigureAsync(true, cfg.AsyncLogChannelSize)
+	}
 	globalInstance = &GlobalFacade{
 		Logger:  logger,
 		Metrics: NewInMemoryMetrics(cfg.ServiceName),
@@ -241,5 +244,18 @@ func EndSpan(span Span) {
 func Dump() {
 	if globalInstance != nil {
 		globalInstance.Metrics.Print()
+	}
+}
+
+// Close gracefully flushes all pending logs and terminates any async resources.
+//
+// Usage example:
+//
+//	defer observability.Close()
+func Close() {
+	if globalInstance != nil {
+		if closer, ok := globalInstance.Logger.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
 	}
 }

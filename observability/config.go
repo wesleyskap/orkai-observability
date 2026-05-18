@@ -9,20 +9,24 @@ import "errors"
 // Usage example:
 //
 //	cfg := observability.Config{
-//		ServiceName:     "user-service",
-//		Environment:     "production",
-//		LogLevel:        "info",
-//		EnableRateLimit: true,
-//		RateLimitBurst:  100,
-//		RateLimitRate:   50,
+//		ServiceName:         "user-service",
+//		Environment:         "production",
+//		LogLevel:            "info",
+//		EnableRateLimit:     true,
+//		RateLimitBurst:      100,
+//		RateLimitRate:       50,
+//		EnableAsyncLog:      true,
+//		AsyncLogChannelSize: 4096,
 //	}
 type Config struct {
-	ServiceName     string
-	Environment     string
-	LogLevel        string
-	EnableRateLimit bool
-	RateLimitBurst  int
-	RateLimitRate   int
+	ServiceName         string
+	Environment         string
+	LogLevel            string
+	EnableRateLimit     bool
+	RateLimitBurst      int
+	RateLimitRate       int
+	EnableAsyncLog      bool
+	AsyncLogChannelSize int
 }
 
 // ValidateConfig verifies that the configuration fields are not empty.

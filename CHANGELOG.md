@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.8.0] - 2026-05-17
+
+### Added
+- **High-Performance Asynchronous Logging:** Implemented non-blocking log delivery using thread-safe ring-buffer Go channel semantics to offload physical I/O writes from active request execution paths.
+- **Drop-Free Saturation Fallback:** Implemented a zero-memory-growth non-blocking fallback that automatically handles full buffer channel saturation by dropping back to synchronous writes to protect vital telemetry.
+- **Graceful Shutdown API:** Exposed a global `Close()` facade function implementing graceful termination that drains the active queue and terminates background worker goroutines.
+
+---
+
 ## [1.7.0] - 2026-05-17
 
 ### Added

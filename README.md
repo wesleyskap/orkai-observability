@@ -578,6 +578,43 @@ sequenceDiagram
 * **Standardized Context Headers:** Supports modern universal W3C traceparent as the primary propagation standard and B3 Single Header as a portable fallback for broad legacy environment integration.
 * **Zero-Configuration Controller Injection:** Write standard Go context logging calls, and all serialization and propagation rules are resolved by the logging engine automatically under the hood.
 
+### 11. High-Performance Asynchronous Ring-Buffer Logging
+
+Eliminate log-writing I/O bottlenecks in performance-critical request handler execution paths. The package supports queueing serialized log entries in a thread-safe buffered channel, offloading physical I/O output streaming to a dedicated background flusher worker goroutine:
+
+```go
+cfg := observability.Config{
+	ServiceName:         "ultra-fast-api",
+	Environment:         "production",
+	LogLevel:            "info",
+	EnableAsyncLog:      true, // Enable asynchronous background logging
+	AsyncLogChannelSize: 8192, // Buffered ring-buffer channel queue size
+}
+_ = observability.Init(cfg)
+
+// Graceful shutdown on application exit (flushes all remaining logs in the queue)
+defer observability.Close()
+```
+
+#### Resilient Drop-Free Saturation Fallback
+
+Under massive burst load where the ring-buffer channel becomes saturated, the logging engine automatically falls back to drop-free synchronous writes to protect operational logging telemetry. This completely bounds memory footprint while preventing silent telemetry loss.
+
+```mermaid
+graph TD
+    Start["Log Statement (Info, Error, etc.)"] --> Serialized["Serialize Log to JSON String"]
+    Serialized --> CheckAsync{"Async Logging Enabled?"}
+    
+    CheckAsync -- "No" --> SynchWrite["Write Synchronously to STDOUT/File"]
+    
+    CheckAsync -- "Yes" --> QueueCheck{"Is Async Channel Queue Full?"}
+    
+    QueueCheck -- "No" --> PushQueue["Instantly Push to Buffered Queue (in nanoseconds)"]
+    PushQueue --> WorkerProcess["Background Goroutine Flusher Writes to Output Stream"]
+    
+    QueueCheck -- "Yes" --> FallbackSynch["Fallback: Write Synchronously to STDOUT"]
+```
+
 ---
 
 ## Running Tests
@@ -616,6 +653,10 @@ $ go test -v ./test/...
 --- PASS: TestLogRateLimitingDrops (0.00s)
 === RUN   TestLogRateLimitingSamples
 --- PASS: TestLogRateLimitingSamples (0.00s)
+=== RUN   TestAsyncLoggerSuccess
+--- PASS: TestAsyncLoggerSuccess (0.00s)
+=== RUN   TestAsyncLoggerSaturation
+--- PASS: TestAsyncLoggerSaturation (0.00s)
 === RUN   TestMetricsIncrement
 --- PASS: TestMetricsIncrement (0.00s)
 === RUN   TestMetricsLatency
@@ -629,9 +670,9 @@ $ go test -v ./test/...
 === RUN   TestMetricsGaugeWithLabels
 --- PASS: TestMetricsGaugeWithLabels (0.00s)
 === RUN   TestHTTPMiddlewareNewTrace
-[TRACE] Start /users trace_id=d866d73440ae9367
-{"level":"INFO","service":"test","trace_id":"d866d73440ae9367","msg":"incoming request started","method":"POST","path":"/users"}
-{"level":"INFO","service":"test","trace_id":"d866d73440ae9367","msg":"outgoing request finished","method":"POST","path":"/users","status":201,"duration_ms":0}
+[TRACE] Start /users trace_id=99558e6fadb10264
+{"level":"INFO","service":"test","trace_id":"99558e6fadb10264","msg":"incoming request started","method":"POST","path":"/users"}
+{"level":"INFO","service":"test","trace_id":"99558e6fadb10264","msg":"outgoing request finished","method":"POST","path":"/users","status":201,"duration_ms":0}
 [TRACE] End /users duration=0s
 --- PASS: TestHTTPMiddlewareNewTrace (0.00s)
 === RUN   TestHTTPMiddlewareResumedTrace
@@ -639,11 +680,21 @@ $ go test -v ./test/...
 {"level":"INFO","service":"test","trace_id":"db3bda","msg":"outgoing request finished","method":"GET","path":"/profile","status":200,"duration_ms":0}
 [TRACE] End /profile duration=0s
 --- PASS: TestHTTPMiddlewareResumedTrace (0.00s)
+=== RUN   TestHTTPMiddlewareW3CTrace
+{"level":"INFO","service":"test","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","msg":"incoming request started","method":"GET","path":"/profile"}
+{"level":"INFO","service":"test","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","msg":"outgoing request finished","method":"GET","path":"/profile","status":200,"duration_ms":0}
+[TRACE] End /profile duration=0s
+--- PASS: TestHTTPMiddlewareW3CTrace (0.00s)
+=== RUN   TestHTTPMiddlewareB3Trace
+{"level":"INFO","service":"test","trace_id":"80f198ee56343ba8","msg":"incoming request started","method":"GET","path":"/profile"}
+{"level":"INFO","service":"test","trace_id":"80f198ee56343ba8","msg":"outgoing request finished","method":"GET","path":"/profile","status":200,"duration_ms":0}
+[TRACE] End /profile duration=0s
+--- PASS: TestHTTPMiddlewareB3Trace (0.00s)
 === RUN   TestGlobalFacadeInit
 --- PASS: TestGlobalFacadeInit (0.00s)
 === RUN   TestGlobalFacadeDelegation
 {"level":"INFO","service":"test-service","msg":"delegated log","key":"val"}
-[TRACE] Start test-span trace_id=b35091c721bd3132
+[TRACE] Start test-span trace_id=e48c28bff45ae36a
 [TRACE] End test-span duration=0s
 === METRICS ===
 test_count: 1
@@ -663,7 +714,7 @@ test_gauge: 10.5
 === RUN   TestNewIntField
 --- PASS: TestNewIntField (0.00s)
 PASS
-ok  	github.com/wesleyskap/orkai-observability/test	0.704s
+ok  	github.com/wesleyskap/orkai-observability/test	0.718s
 ```
 
 ---

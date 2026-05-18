@@ -71,6 +71,10 @@ type JSONLogger struct {
 	traceProvider func() string
 	rateLimiter   *LogRateLimiter
 	level         int32
+	asyncEnabled  bool
+	asyncChan     chan string
+	asyncStop     chan struct{}
+	asyncWg       sync.WaitGroup
 }
 
 // NewJSONLogger creates a new JSONLogger instance.
@@ -189,16 +193,91 @@ func (l *JSONLogger) Error(msg string, err error, fields ...Field) {
 // writeEntry handles rate limiting, sampling flags, serialization, and writer delivery.
 func (l *JSONLogger) writeEntry(level string, traceID string, msg string, fields []Field) {
 	if l.rateLimiter != nil {
-		allow, throttled := l.rateLimiter.Allow()
-		if !allow {
+		if allow, throttled := l.rateLimiter.Allow(); !allow {
 			return
-		}
-		if throttled {
+		} else if throttled {
 			fields = append(fields, NewStringField("log_burst_throttled", "true"))
 		}
 	}
 	jsonStr := formatJSON(level, l.service, traceID, msg, fields)
+	l.deliverLog(jsonStr)
+}
+
+// ConfigureAsync initializes the background worker and channel for asynchronous logging.
+//
+// Usage example:
+//
+//	logger.ConfigureAsync(true, 4096)
+func (l *JSONLogger) ConfigureAsync(enabled bool, size int) {
+	if !enabled {
+		return
+	}
+	if size <= 0 {
+		size = 4096
+	}
+	l.asyncEnabled = true
+	l.asyncChan = make(chan string, size)
+	l.asyncStop = make(chan struct{})
+	l.asyncWg.Add(1)
+	go l.asyncWorker()
+}
+
+func (l *JSONLogger) asyncWorker() {
+	defer l.asyncWg.Done()
+	for {
+		select {
+		case logStr, ok := <-l.asyncChan:
+			if !ok {
+				return
+			}
+			_, _ = l.writer.Write([]byte(logStr))
+		case <-l.asyncStop:
+			l.flushChan()
+			return
+		}
+	}
+}
+
+func (l *JSONLogger) flushChan() {
+	for {
+		select {
+		case logStr, ok := <-l.asyncChan:
+			if ok {
+				_, _ = l.writer.Write([]byte(logStr))
+				continue
+			}
+		default:
+		}
+		break
+	}
+}
+
+func (l *JSONLogger) deliverLog(jsonStr string) {
+	if l.asyncEnabled {
+		select {
+		case l.asyncChan <- jsonStr:
+		default:
+			_, _ = l.writer.Write([]byte(jsonStr))
+		}
+		return
+	}
 	_, _ = l.writer.Write([]byte(jsonStr))
+}
+
+// Close gracefully flushes all pending logs and terminates background worker goroutines.
+//
+// Usage example:
+//
+//	err := logger.Close()
+func (l *JSONLogger) Close() error {
+	if !l.asyncEnabled {
+		return nil
+	}
+	close(l.asyncStop)
+	l.asyncWg.Wait()
+	close(l.asyncChan)
+	l.asyncEnabled = false
+	return nil
 }
 
 // formatJSON constructs a raw JSON formatted string for the log.

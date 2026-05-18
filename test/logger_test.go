@@ -176,3 +176,33 @@ func TestLogRateLimitingSamples(t *testing.T) {
 		t.Errorf("expected sampled log to be marked, got %s", sampledLines[0])
 	}
 }
+
+// TestAsyncLoggerSuccess asserts that async logging queues and flushes entries gracefully.
+func TestAsyncLoggerSuccess(t *testing.T) {
+	fw := &FakeWriter{}
+	logger := observability.NewJSONLogger(fw, "async-service")
+	logger.ConfigureAsync(true, 10)
+	logger.Info("hello async")
+	logger.Info("world async")
+	_ = logger.Close()
+	output := fw.Buf.String()
+	if !strings.Contains(output, "hello async") || !strings.Contains(output, "world async") {
+		t.Fatalf("expected flushed async logs, got: %s", output)
+	}
+}
+
+// TestAsyncLoggerSaturation asserts that full async channel conditions trigger safe synchronous fallback.
+func TestAsyncLoggerSaturation(t *testing.T) {
+	fw := &FakeWriter{}
+	logger := observability.NewJSONLogger(fw, "saturation-service")
+	logger.ConfigureAsync(true, 1)
+	for i := 0; i < 20; i++ {
+		logger.Info("spam log")
+	}
+	_ = logger.Close()
+	output := fw.Buf.String()
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) < 20 {
+		t.Fatalf("expected all logs to be preserved via fallback, got only %d", len(lines))
+	}
+}
