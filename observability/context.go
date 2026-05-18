@@ -1,6 +1,10 @@
 package observability
 
-import "context"
+import (
+	"context"
+
+	"go.opentelemetry.io/otel/trace"
+)
 
 // ContextWithTraceID returns a new context carrying the specified trace ID.
 //
@@ -22,6 +26,9 @@ func ContextWithTraceID(ctx context.Context, traceID string) context.Context {
 func TraceIDFromContext(ctx context.Context) string {
 	if ctx == nil {
 		return ""
+	}
+	if span := trace.SpanFromContext(ctx); span != nil && span.SpanContext().IsValid() {
+		return span.SpanContext().TraceID().String()
 	}
 	val := ctx.Value(traceIDKey)
 	if id, ok := val.(string); ok {

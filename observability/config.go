@@ -2,7 +2,12 @@
 // for structured JSON logging, metrics aggregation, and nested context tracing.
 package observability
 
-import "errors"
+import (
+	"errors"
+
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+)
 
 // Config defines the configuration settings for the observability package.
 //
@@ -17,6 +22,7 @@ import "errors"
 //		RateLimitRate:       50,
 //		EnableAsyncLog:      true,
 //		AsyncLogChannelSize: 4096,
+//		EnableOTel:          true,
 //	}
 type Config struct {
 	ServiceName         string
@@ -27,6 +33,9 @@ type Config struct {
 	RateLimitRate       int
 	EnableAsyncLog      bool
 	AsyncLogChannelSize int
+	EnableOTel          bool
+	OTelTracerProvider  trace.TracerProvider
+	OTelMeterProvider   metric.MeterProvider
 }
 
 // ValidateConfig verifies that the configuration fields are not empty.

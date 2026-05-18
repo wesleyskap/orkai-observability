@@ -40,11 +40,13 @@ func Init(cfg Config) error {
 	if cfg.EnableAsyncLog {
 		logger.ConfigureAsync(true, cfg.AsyncLogChannelSize)
 	}
-	globalInstance = &GlobalFacade{
-		Logger:  logger,
-		Metrics: NewInMemoryMetrics(cfg.ServiceName),
-		Tracer:  NewLocalTracer(cfg.ServiceName),
+	var metrics Metrics = NewInMemoryMetrics(cfg.ServiceName)
+	var tracer Tracer = NewLocalTracer(cfg.ServiceName)
+	if cfg.EnableOTel {
+		metrics = NewOTelMetrics(cfg.OTelMeterProvider, cfg.ServiceName)
+		tracer = NewOTelTracer(cfg.OTelTracerProvider, cfg.ServiceName)
 	}
+	globalInstance = &GlobalFacade{Logger: logger, Metrics: metrics, Tracer: tracer}
 	return nil
 }
 

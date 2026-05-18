@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.11.0] - 2026-05-18
+
+### Added
+- **OpenTelemetry (OTel) Semantic Bridge:** Implemented transparent semantic adapters (`NewOTelTracer`, `NewOTelMetrics`) mapping our custom `Tracer` and `Metrics` interfaces directly to native OpenTelemetry SDKs (`go.opentelemetry.io/otel`).
+- **Defensive Telemetry Fallback:** Enabled dynamic nil checks inside OTel constructors that automatically fallback to standard global providers (`otel.GetTracerProvider()`, `otel.GetMeterProvider()`).
+- **Seamless Log Correlation:** Upgraded `TraceIDFromContext` to check and extract active OpenTelemetry trace context IDs, correlating OTel distributed traces automatically with the structured JSON logger.
+
+---
+
 ## [1.10.0] - 2026-05-18
 
 ### Added
@@ -151,7 +160,7 @@ Ensure strict compliance with data safety regulations (such as LGPD and GDPR) by
 
 ### Added
 - **Outbound Context Propagation:** Added `TracingRoundTripper` implementing `http.RoundTripper` to automatically inject the active LIFO trace ID (`X-Trace-ID` header) into outbound HTTP requests.
-- **Client Transport Wrapper:** Provided `NewTracingClient()` constructor to instantiate pre-configured tracing clients out-of-the-box in zero developer boilerplate.
+- **Client Transport Wrapper:** Provided `NewTracingClient()` constructor to instantiate pre-configured tracing clients out-of-the-box transparently.
 
   #### Before (Manual trace header injection inside every API call)
   ```go
@@ -209,7 +218,7 @@ Ensure strict compliance with data safety regulations (such as LGPD and GDPR) by
 ### Added
 - **HTTP Tracing Middleware:** Added reusable `observability.HTTPMiddleware` to automatically intercept requests, correlate incoming/generated `X-Trace-ID` headers, timing-log cycles, and capture status codes out-of-the-box.
   
-  #### Before (Manual Span boilerplate inside each Controller)
+  #### Before (Manual Span tracing inside each Controller)
   ```go
   func (c *UserController) ServeHTTP(w http.ResponseWriter, req *http.Request) {
       // Manual tracing at the top of every endpoint
@@ -231,7 +240,7 @@ Ensure strict compliance with data safety regulations (such as LGPD and GDPR) by
   
   // Clean Controllers!
   func (c *UserController) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-      // No more tracing boilerplate! Ready to use active traces inside downstream calls.
+      // No more tracing overhead! Ready to use active traces inside downstream calls.
   }
   ```
 

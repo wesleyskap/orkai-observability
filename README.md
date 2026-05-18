@@ -366,7 +366,7 @@ _ = observability.Init(cfg)
 // {"level":"INFO","msg":"handling order checkout","log_burst_throttled":"true"}
 ```
 
-#### Zero-Boilerplate Integration
+#### Transparent Integration
 
 Because rate limiting is integrated natively inside the global logging engine, downstream services (such as API gateway routers or business logic controllers) do not require **any** modifications. 
 
@@ -749,6 +749,44 @@ graph LR
 
 ---
 
+### 14. OpenTelemetry (OTel) Semantic Bridge
+
+Enable seamless integration with the global OpenTelemetry standard without vendor lock-in. The semantic adapter allows mapping our custom tracing and metrics interfaces directly to native OpenTelemetry SDKs (`go.opentelemetry.io/otel`), protecting your codebase from third-party API churn while staying fully compatible with modern SaaS observability backends (Datadog, Grafana Cloud, Dynatrace, New Relic, etc.).
+
+```go
+// 1. Configure the global facade to route directly to native OpenTelemetry providers
+cfg := observability.Config{
+	ServiceName:        "payment-service",
+	Environment:        "production",
+	LogLevel:           "info",
+	EnableOTel:         true, // Route all telemetry directly to OpenTelemetry APIs
+	OTelTracerProvider: otel.GetTracerProvider(),
+	OTelMeterProvider:  otel.GetMeterProvider(),
+}
+_ = observability.Init(cfg)
+
+// 2. Tracing and Metrics calls translate automatically to OTel instruments
+ctx, span := observability.StartSpan(context.Background(), "AuthorizePayment")
+defer observability.EndSpan(span)
+
+observability.Counter("transactions_processed")
+```
+
+#### Dual Local-OTel Telemetry Architecture
+
+To preserve local debugging capabilities, the `otelMetrics` adapter implements a dual-route architecture. While telemetry events are instantly translated and pushed to the standard OpenTelemetry SDK, they are also aggregated inside our internal memory engine. This ensures that the local scrapable Prometheus handler (`/metrics`) and JSON snapshots (`GetSummary()`) continue to function perfectly!
+
+```mermaid
+graph TD
+    API["observability.Counter('req_total')"] --> Bridge["OTel Metrics Adapter"]
+    Bridge --> OTelSDK["Forward to OTel SDK (MeterProvider)"]
+    Bridge --> LocalSDK["Forward to Local InMemoryMetrics Engine"]
+    OTelSDK --> Collector["OTel Collector (Datadog/Dynatrace/Jaeger)"]
+    LocalSDK --> Scrapable["Local Endpoint /metrics (Prometheus / JSON)"]
+```
+
+---
+
 ## Running Tests
 
 Our tests are fully isolated inside the `/test` directory, exercising the public API of the package just like a real client application:
@@ -802,15 +840,15 @@ $ go test -v ./test/...
 === RUN   TestMetricsGaugeWithLabels
 --- PASS: TestMetricsGaugeWithLabels (0.00s)
 === RUN   TestHTTPMiddlewareNewTrace
-[TRACE] Start /users trace_id=af92789e643005c3
-{"level":"INFO","service":"test","trace_id":"af92789e643005c3","msg":"incoming request started","method":"POST","path":"/users"}
-{"level":"INFO","service":"test","trace_id":"af92789e643005c3","msg":"outgoing request finished","method":"POST","path":"/users","status":201,"duration_ms":0}
+[TRACE] Start /users trace_id=6f9b7348e9b4258f
+{"level":"INFO","service":"test","trace_id":"6f9b7348e9b4258f","msg":"incoming request started","method":"POST","path":"/users"}
+{"level":"INFO","service":"test","trace_id":"6f9b7348e9b4258f","msg":"outgoing request finished","method":"POST","path":"/users","status":201,"duration_ms":0}
 [TRACE] End /users duration=0s
 --- PASS: TestHTTPMiddlewareNewTrace (0.00s)
 === RUN   TestHTTPMiddlewareResumedTrace
 {"level":"INFO","service":"test","trace_id":"db3bda","msg":"incoming request started","method":"GET","path":"/profile"}
 {"level":"INFO","service":"test","trace_id":"db3bda","msg":"outgoing request finished","method":"GET","path":"/profile","status":200,"duration_ms":0}
-[TRACE] End /profile duration=528µs
+[TRACE] End /profile duration=0s
 --- PASS: TestHTTPMiddlewareResumedTrace (0.00s)
 === RUN   TestHTTPMiddlewareW3CTrace
 {"level":"INFO","service":"test","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","msg":"incoming request started","method":"GET","path":"/profile"}
@@ -826,13 +864,19 @@ $ go test -v ./test/...
 --- PASS: TestGlobalFacadeInit (0.00s)
 === RUN   TestGlobalFacadeDelegation
 {"level":"INFO","service":"test-service","msg":"delegated log","key":"val"}
-[TRACE] Start test-span trace_id=71a168d60ecda45b
+[TRACE] Start test-span trace_id=5b47e8143e5c80df
 [TRACE] End test-span duration=0s
 === METRICS ===
 test_count: 1
 test_latency_latency_avg: 10ms
 test_gauge: 10.5
 --- PASS: TestGlobalFacadeDelegation (0.00s)
+=== RUN   TestOTelBridgeTracing
+--- PASS: TestOTelBridgeTracing (0.00s)
+=== RUN   TestOTelBridgeMetrics
+--- PASS: TestOTelBridgeMetrics (0.00s)
+=== RUN   TestOTelBridgeLogCorrelation
+--- PASS: TestOTelBridgeLogCorrelation (0.00s)
 === RUN   TestMetricsPercentilesCalculation
 --- PASS: TestMetricsPercentilesCalculation (0.00s)
 === RUN   TestMetricsHistogramBuckets
@@ -860,7 +904,7 @@ test_gauge: 10.5
 === RUN   TestNewIntField
 --- PASS: TestNewIntField (0.00s)
 PASS
-ok  	github.com/wesleyskap/orkai-observability/test	0.751s
+ok  	github.com/wesleyskap/orkai-observability/test	0.740s
 ```
 
 ---
