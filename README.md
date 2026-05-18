@@ -84,6 +84,9 @@ sequenceDiagram
 * **High-Performance Asynchronous Logging:** Non-blocking ring-buffer logging using Go channel concurrency with zero log loss saturation fallback to protect request critical paths.
 * **Distributed context propagation:** End-to-end trace correlation boundaries carrying active spans across different microservices using W3C Trace Context and B3 propagation header standards.
 * **Resilient Outbound Transport:** HTTP client decorators featuring a pure Go thread-safe Circuit Breaker state machine and exponential backoff retry policies for transient errors (503/504).
+* **Advanced Metrics Percentiles:** Thread-safe memory-bounded sliding-window latency reservoirs (capped at 2000 samples) to compute accurate p50, p90, and p99 distributions.
+* **Prometheus Cumulative Histograms:** Extended HTTP `/metrics` handler exporting latency metrics into scrapable Prometheus histogram blocks (`_bucket`, `_sum`, `_count`) alongside JSON.
+* **OpenTelemetry (OTel) Semantic Bridge:** Semantic adapters (`NewOTelTracer`, `NewOTelMetrics`) mapping Orkai facades to the official `go.opentelemetry.io/otel` SDK with dual-routing and fallback.
 
 ---
 
@@ -101,6 +104,7 @@ orkai-observability/
 │   ├── metrics.go          # Concurrent safe in-memory metrics
 │   ├── middleware.go       # Reusable HTTP Tracing & Logging Middleware
 │   ├── observability.go    # Global Facade & package-level API
+│   ├── otel_bridge.go      # OpenTelemetry SDK semantic adapters
 │   ├── propagation.go      # Multi-standard context propagation
 │   ├── resilience.go       # Circuit Breaker & Retry resilience engine
 │   ├── tracer.go           # Thread-safe LIFO Trace Stack & cryptographics
@@ -113,6 +117,7 @@ orkai-observability/
 │   ├── metrics_test.go     # InMemory Metrics & snapshots tests
 │   ├── middleware_test.go  # HTTP Middleware tests
 │   ├── observability_test.go     # Global Facade tests
+│   ├── otel_bridge_test.go       # OpenTelemetry bridge integration tests
 │   ├── percentiles_test.go # Latency percentiles & histogram tests
 │   ├── resilience_test.go  # Circuit Breaker & Retry resilience tests
 │   ├── tracer_test.go            # LIFO Trace Stack tests
