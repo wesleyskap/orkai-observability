@@ -113,6 +113,7 @@ orkai-observability/
 │   ├── metrics_test.go     # InMemory Metrics & snapshots tests
 │   ├── middleware_test.go  # HTTP Middleware tests
 │   ├── observability_test.go     # Global Facade tests
+│   ├── percentiles_test.go # Latency percentiles & histogram tests
 │   ├── resilience_test.go  # Circuit Breaker & Retry resilience tests
 │   ├── tracer_test.go            # LIFO Trace Stack tests
 │   ├── transport_test.go         # Outbound HTTP Client Transport tests
@@ -656,6 +657,96 @@ stateDiagram-v2
     HALF_OPEN --> OPEN : Outbound call failure recorded (trip again)
 ```
 
+### 13. Advanced Metrics Histograms & Percentiles (p50, p90, p99)
+
+Accurately diagnose long-tail latency spikes (e.g. cold starts, garbage collection pauses) that are typically hidden by standard flat averages. The metrics engine contains a thread-safe sliding window reservoir that tracks percentile distributions (p50, p90, p99) and exports them in standard Prometheus cumulative histogram bucket formats:
+
+```go
+// 1. Record latencies normally
+observability.Latency("http_duration", 12*time.Millisecond)
+observability.Latency("http_duration", 150*time.Millisecond)
+
+// 2. Fetch the metrics summary snapshot
+summary := observability.GetSummary()
+pct := summary.Percentiles["http_duration"]
+fmt.Printf("Median: %g ms, 99th Percentile: %g ms\n", pct.P50, pct.P99)
+```
+
+#### Memory-Bounded Sliding Window Reservoir
+
+To prevent unbounded memory growth in high-throughput production environments, each latency metric key allocates a lock-protected reservoir capped at **2000 samples**. When the reservoir saturates, older observations are evicted in a sliding-window fashion, keeping statistical distributions fresh and representative of recent traffic patterns.
+
+```mermaid
+graph LR
+    Incoming["RecordLatency(120ms)"] --> Lock["Thread-Safe Mutex Lock"]
+    Lock --> ReservoirCheck{"Reservoir Saturated (Size >= 2000)?"}
+    
+    ReservoirCheck -- "Yes" --> Evict["Evict Oldest Sample (index 0)"]
+    Evict --> Append["Append New Sample at Tail"]
+    
+    ReservoirCheck -- "No" --> Append
+    
+    Append --> SortCompute["GetSummary() Sorts Copy & Computes Percentiles"]
+    SortCompute --> P50["p50 (Median)"]
+    SortCompute --> P90["p90 (90th)"]
+    SortCompute --> P99["p99 (99th)"]
+```
+
+#### Scrapable Formats
+
+1. **Prometheus Text exposition Format (`GET /metrics?format=prometheus`):**
+   Exposes standard cumulative `_bucket{le="..."}` counters, along with the required `_sum` and `_count` lines:
+   ```text
+   # HELP http_duration Histogram of latency in milliseconds for http_duration
+   # TYPE http_duration histogram
+   http_duration_bucket{le="5"} 0
+   http_duration_bucket{le="10"} 0
+   http_duration_bucket{le="25"} 1
+   http_duration_bucket{le="50"} 1
+   http_duration_bucket{le="100"} 1
+   http_duration_bucket{le="250"} 2
+   http_duration_bucket{le="500"} 2
+   http_duration_bucket{le="1000"} 2
+   http_duration_bucket{le="2500"} 2
+   http_duration_bucket{le="5000"} 2
+   http_duration_bucket{le="+Inf"} 2
+   http_duration_sum 162
+   http_duration_count 2
+   ```
+2. **JSON Summary Payload:**
+   Exposes computed percentiles alongside raw average latencies and cumulative bucket maps:
+   ```json
+   {
+     "counters": {},
+     "latencies": {
+       "http_duration": 81.0
+     },
+     "percentiles": {
+       "http_duration": {
+         "p50": 12.0,
+         "p90": 150.0,
+         "p99": 150.0
+       }
+     },
+     "histograms": {
+       "http_duration": {
+         "5": 0,
+         "10": 0,
+         "25": 1,
+         "50": 1,
+         "100": 1,
+         "250": 2,
+         "500": 2,
+         "1000": 2,
+         "2500": 2,
+         "5000": 2,
+         "+Inf": 2
+       }
+     },
+     "gauges": {}
+   }
+   ```
+
 ---
 
 ## Running Tests
@@ -735,13 +826,19 @@ $ go test -v ./test/...
 --- PASS: TestGlobalFacadeInit (0.00s)
 === RUN   TestGlobalFacadeDelegation
 {"level":"INFO","service":"test-service","msg":"delegated log","key":"val"}
-[TRACE] Start test-span trace_id=9416dc704d576c62
+[TRACE] Start test-span trace_id=71a168d60ecda45b
 [TRACE] End test-span duration=0s
 === METRICS ===
 test_count: 1
 test_latency_latency_avg: 10ms
 test_gauge: 10.5
 --- PASS: TestGlobalFacadeDelegation (0.00s)
+=== RUN   TestMetricsPercentilesCalculation
+--- PASS: TestMetricsPercentilesCalculation (0.00s)
+=== RUN   TestMetricsHistogramBuckets
+--- PASS: TestMetricsHistogramBuckets (0.00s)
+=== RUN   TestPrometheusExporterHistogram
+--- PASS: TestPrometheusExporterHistogram (0.00s)
 === RUN   TestCircuitBreakerTransitionsToOpen
 --- PASS: TestCircuitBreakerTransitionsToOpen (0.00s)
 === RUN   TestCircuitBreakerTransitionsToClosed
@@ -763,7 +860,7 @@ test_gauge: 10.5
 === RUN   TestNewIntField
 --- PASS: TestNewIntField (0.00s)
 PASS
-ok  	github.com/wesleyskap/orkai-observability/test	0.733s
+ok  	github.com/wesleyskap/orkai-observability/test	0.751s
 ```
 
 ---

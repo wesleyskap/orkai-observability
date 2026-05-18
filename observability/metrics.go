@@ -10,11 +10,113 @@ import (
 	"time"
 )
 
-// MetricsSummary holds a snapshot copy of in-memory metrics.
+// LatencyPercentiles holds computed p50, p90, and p99 percentile values in milliseconds.
+// It serves to diagnose long-tail latency outliers in production environments.
+//
+// Usage example:
+//
+//	pct := summary.Percentiles["http_requests"]
+//	medianMs := pct.P50
+type LatencyPercentiles struct {
+	P50 float64 `json:"p50"`
+	P90 float64 `json:"p90"`
+	P99 float64 `json:"p99"`
+}
+
+// MetricsSummary holds a snapshot copy of in-memory metrics, carrying counters, latencies,
+// percentiles, cumulative histograms, and gauges. It serves to convey formatted JSON outputs.
+//
+// Usage example:
+//
+//	summary := metrics.GetSummary()
+//	totalHits := summary.Counters["http_requests_total"]
 type MetricsSummary struct {
-	Counters  map[string]int64   `json:"counters"`
-	Latencies map[string]float64 `json:"latencies"`
-	Gauges    map[string]float64 `json:"gauges"`
+	Counters    map[string]int64              `json:"counters"`
+	Latencies   map[string]float64            `json:"latencies"`
+	Percentiles map[string]LatencyPercentiles `json:"percentiles"`
+	Histograms  map[string]map[string]int64   `json:"histograms"`
+	Gauges      map[string]float64            `json:"gauges"`
+}
+
+// latencyReservoir is a thread-safe sliding-window list of latency observations.
+type latencyReservoir struct {
+	mu      sync.Mutex
+	samples []float64
+	maxSize int
+}
+
+// newLatencyReservoir initializes a bounded latency reservoir.
+func newLatencyReservoir(maxSize int) *latencyReservoir {
+	return &latencyReservoir{
+		samples: make([]float64, 0, maxSize),
+		maxSize: maxSize,
+	}
+}
+
+// Add appends a new latency observation to the reservoir.
+func (r *latencyReservoir) Add(val float64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.samples) >= r.maxSize {
+		r.samples = append(r.samples[1:], val)
+	} else {
+		r.samples = append(r.samples, val)
+	}
+}
+
+// extractPercentile computes a single percentile from a sorted sample slice.
+func (r *latencyReservoir) extractPercentile(sorted []float64, percentile float64) float64 {
+	n := len(sorted)
+	idx := int(float64(n) * percentile)
+	if idx < n {
+		return sorted[idx]
+	}
+	return 0
+}
+
+// Percentiles calculates the p50, p90, and p99 values from the reservoir.
+func (r *latencyReservoir) Percentiles() (p50, p90, p99 float64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := len(r.samples)
+	if n == 0 {
+		return 0, 0, 0
+	}
+	temp := make([]float64, n)
+	copy(temp, r.samples)
+	sort.Float64s(temp)
+	p50 = r.extractPercentile(temp, 0.50)
+	p90 = r.extractPercentile(temp, 0.90)
+	p99 = r.extractPercentile(temp, 0.99)
+	return
+}
+
+// incrementBucketCounters increments cumulative counts for matching buckets.
+func (r *latencyReservoir) incrementBucketCounters(buckets map[string]int64, thresholds []float64, val float64) {
+	for _, limit := range thresholds {
+		if val <= limit {
+			limitStr := strconv.FormatFloat(limit, 'f', -1, 64)
+			buckets[limitStr]++
+		}
+	}
+	buckets["+Inf"]++
+}
+
+// Buckets generates cumulative bucket counts matching Prometheus expectations.
+func (r *latencyReservoir) Buckets() map[string]int64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	buckets := make(map[string]int64)
+	thresholds := []float64{5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000}
+	for _, limit := range thresholds {
+		limitStr := strconv.FormatFloat(limit, 'f', -1, 64)
+		buckets[limitStr] = 0
+	}
+	buckets["+Inf"] = 0
+	for _, val := range r.samples {
+		r.incrementBucketCounters(buckets, thresholds, val)
+	}
+	return buckets
 }
 
 // Metrics defines the interface for tracking metrics.
@@ -75,13 +177,14 @@ type Metrics interface {
 //
 //	metrics := observability.NewInMemoryMetrics("user-service")
 type InMemoryMetrics struct {
-	mu            sync.Mutex
-	writer        io.Writer
-	service       string
-	counters      map[string]int64
-	latencyTotals map[string]time.Duration
-	latencyCounts map[string]int64
-	gauges        map[string]float64
+	mu                sync.Mutex
+	writer            io.Writer
+	service           string
+	counters          map[string]int64
+	latencyTotals     map[string]time.Duration
+	latencyCounts     map[string]int64
+	latencyReservoirs map[string]*latencyReservoir
+	gauges            map[string]float64
 }
 
 // NewInMemoryMetrics constructs an InMemoryMetrics instance.
@@ -91,12 +194,13 @@ type InMemoryMetrics struct {
 //	metrics := observability.NewInMemoryMetrics("auth-service")
 func NewInMemoryMetrics(service string) *InMemoryMetrics {
 	metrics := &InMemoryMetrics{
-		writer:        os.Stdout,
-		service:       service,
-		counters:      make(map[string]int64),
-		latencyTotals: make(map[string]time.Duration),
-		latencyCounts: make(map[string]int64),
-		gauges:        make(map[string]float64),
+		writer:            os.Stdout,
+		service:           service,
+		counters:          make(map[string]int64),
+		latencyTotals:     make(map[string]time.Duration),
+		latencyCounts:     make(map[string]int64),
+		latencyReservoirs: make(map[string]*latencyReservoir),
+		gauges:            make(map[string]float64),
 	}
 	return metrics
 }
@@ -132,6 +236,17 @@ func (m *InMemoryMetrics) RecordLatency(name string, duration time.Duration) {
 	defer m.mu.Unlock()
 	m.latencyTotals[name] += duration
 	m.latencyCounts[name]++
+	m.addSampleToReservoir(name, duration)
+}
+
+// addSampleToReservoir initializes and populates the latency reservoir safely.
+func (m *InMemoryMetrics) addSampleToReservoir(name string, duration time.Duration) {
+	r, exists := m.latencyReservoirs[name]
+	if !exists {
+		r = newLatencyReservoir(2000)
+		m.latencyReservoirs[name] = r
+	}
+	r.Add(float64(duration.Milliseconds()))
 }
 
 // SetGauge sets a gauge value.
@@ -193,24 +308,60 @@ func (m *InMemoryMetrics) printGauges() {
 func (m *InMemoryMetrics) GetSummary() MetricsSummary {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	summary := MetricsSummary{
-		Counters:  make(map[string]int64),
-		Latencies: make(map[string]float64),
-		Gauges:    make(map[string]float64),
+	summary := m.initEmptySummary()
+	m.copyCountersToSummary(summary)
+	m.copyGaugesToSummary(summary)
+	m.copyLatenciesToSummary(summary)
+	m.copyReservoirsToSummary(summary)
+	return summary
+}
+
+// initEmptySummary initializes the standard empty MetricsSummary with allocated maps.
+func (m *InMemoryMetrics) initEmptySummary() MetricsSummary {
+	return MetricsSummary{
+		Counters:    make(map[string]int64),
+		Latencies:   make(map[string]float64),
+		Percentiles: make(map[string]LatencyPercentiles),
+		Histograms:  make(map[string]map[string]int64),
+		Gauges:      make(map[string]float64),
 	}
+}
+
+// copyCountersToSummary copies in-memory counters into the summary.
+func (m *InMemoryMetrics) copyCountersToSummary(s MetricsSummary) {
 	for k, v := range m.counters {
-		summary.Counters[k] = v
+		s.Counters[k] = v
 	}
+}
+
+// copyGaugesToSummary copies in-memory gauges into the summary.
+func (m *InMemoryMetrics) copyGaugesToSummary(s MetricsSummary) {
 	for k, v := range m.gauges {
-		summary.Gauges[k] = v
+		s.Gauges[k] = v
 	}
+}
+
+// copyLatenciesToSummary copies in-memory average latency estimates into the summary.
+func (m *InMemoryMetrics) copyLatenciesToSummary(s MetricsSummary) {
 	for k, v := range m.latencyTotals {
 		count := m.latencyCounts[k]
 		if count > 0 {
-			summary.Latencies[k] = float64(v.Milliseconds()) / float64(count)
+			s.Latencies[k] = float64(v.Milliseconds()) / float64(count)
 		}
 	}
-	return summary
+}
+
+// copyReservoirsToSummary computes percentiles and buckets to populate the summary.
+func (m *InMemoryMetrics) copyReservoirsToSummary(s MetricsSummary) {
+	for k, r := range m.latencyReservoirs {
+		p50, p90, p99 := r.Percentiles()
+		s.Percentiles[k] = LatencyPercentiles{
+			P50: p50,
+			P90: p90,
+			P99: p99,
+		}
+		s.Histograms[k] = r.Buckets()
+	}
 }
 
 // formatMetricKey generates a deterministic, sorted string representation of name and labels.

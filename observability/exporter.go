@@ -45,6 +45,7 @@ func writePrometheusMetrics(w http.ResponseWriter, summary MetricsSummary) {
 	writeCounters(w, summary.Counters)
 	writeGauges(w, summary.Gauges)
 	writeLatencies(w, summary.Latencies)
+	writeHistograms(w, summary)
 }
 
 // writeCounters formats and writes all cumulative counters.
@@ -76,6 +77,43 @@ func writeLatencies(w io.Writer, latencies map[string]float64) {
 		_, _ = fmt.Fprintf(w, "# TYPE %s gauge\n", fullName)
 		_, _ = fmt.Fprintf(w, "%s%s %g\n", fullName, labels, val)
 	}
+}
+
+// writeHistograms formats and writes all cumulative latency histograms.
+func writeHistograms(w io.Writer, summary MetricsSummary) {
+	for name, buckets := range summary.Histograms {
+		base, labels := parseMetricKey(name)
+		_, _ = fmt.Fprintf(w, "# HELP %s Histogram of latency in milliseconds for %s\n", base, base)
+		_, _ = fmt.Fprintf(w, "# TYPE %s histogram\n", base)
+		writeHistogramBuckets(w, base, labels, buckets)
+		sum := summary.Latencies[name] * float64(buckets["+Inf"])
+		writeHistogramSumAndCount(w, base, labels, sum, buckets["+Inf"])
+	}
+}
+
+// writeHistogramBuckets formats and writes each individual bucket line for a metric.
+func writeHistogramBuckets(w io.Writer, base, labels string, buckets map[string]int64) {
+	thresholds := []string{"5", "10", "25", "50", "100", "250", "500", "1000", "2500", "5000", "+Inf"}
+	for _, le := range thresholds {
+		count := buckets[le]
+		bucketLabels := mergeLabelsWithLE(labels, le)
+		_, _ = fmt.Fprintf(w, "%s_bucket%s %d\n", base, bucketLabels, count)
+	}
+}
+
+// mergeLabelsWithLE injects the le tag into the existing metric label block.
+func mergeLabelsWithLE(labels, le string) string {
+	if labels == "" {
+		return `{le="` + le + `"}`
+	}
+	inner := labels[1 : len(labels)-1]
+	return `{` + inner + `,le="` + le + `"}`
+}
+
+// writeHistogramSumAndCount writes the trailing _sum and _count lines for a metric.
+func writeHistogramSumAndCount(w io.Writer, base, labels string, sum float64, count int64) {
+	_, _ = fmt.Fprintf(w, "%s_sum%s %g\n", base, labels, sum)
+	_, _ = fmt.Fprintf(w, "%s_count%s %d\n", base, labels, count)
 }
 
 // parseMetricKey splits a formatted metric name into the base name and labels block.
