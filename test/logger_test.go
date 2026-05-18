@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/wesleyskap/orkai-observability/observability"
@@ -12,13 +13,15 @@ import (
 
 // FakeWriter is a named mock for io.Writer to capture output.
 type FakeWriter struct {
+	mu  sync.Mutex
 	Buf bytes.Buffer
 }
 
-// Write captures the input bytes to the buffer.
+// Write captures the input bytes to the buffer in a thread-safe manner.
 func (f *FakeWriter) Write(p []byte) (int, error) {
-	n, err := f.Buf.Write(p)
-	return n, err
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.Buf.Write(p)
 }
 
 // TestJSONLoggerInfo verifies that Info logs write correct JSON data.
