@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.9.0] - 2026-05-18
+
+### Added
+- **Resilient Outbound Transport (Phase 14):** Created the high-performance `ResilientRoundTripper` decorator integrating a thread-safe Circuit Breaker and automated transient error retries.
+- **Circuit Breaker State Machine:** Implemented the dependency-free `CircuitBreaker` support engine tracking sequential errors, error ratios, cooldown periods, and state transitions (`CLOSED`, `OPEN`, `HALF-OPEN`).
+- **Exponential Backoff Retry Policy:** Added native support in the resilient round-tripper to automatically retry idempotent requests under transient status codes (503 Service Unavailable, 544 Gateway Timeout) using doubling duration factor pauses.
+
+---
+
 ## [1.8.0] - 2026-05-17
 
 ### Added

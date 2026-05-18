@@ -81,6 +81,9 @@ sequenceDiagram
 * **HTTP Tracing Middleware:** Reusable request wrapping that manages span traces, captures response statuses, and timing-logs endpoints out-of-the-box.
 * **JSON Metrics Exporter:** Concurrent-safe live performance snapshots available under `/metrics` in a structured JSON payload.
 * **Dynamic Log Level Rotation:** Atomic, lock-free runtime changes using `SetLogLevel` to adjust verbosity during live incidents without container restarts.
+* **High-Performance Asynchronous Logging:** Non-blocking ring-buffer logging using Go channel concurrency with zero log loss saturation fallback to protect request critical paths.
+* **Distributed context propagation:** End-to-end trace correlation boundaries carrying active spans across different microservices using W3C Trace Context and B3 propagation header standards.
+* **Resilient Outbound Transport:** HTTP client decorators featuring a pure Go thread-safe Circuit Breaker state machine and exponential backoff retry policies for transient errors (503/504).
 
 ---
 
@@ -98,6 +101,8 @@ orkai-observability/
 │   ├── metrics.go          # Concurrent safe in-memory metrics
 │   ├── middleware.go       # Reusable HTTP Tracing & Logging Middleware
 │   ├── observability.go    # Global Facade & package-level API
+│   ├── propagation.go      # Multi-standard context propagation
+│   ├── resilience.go       # Circuit Breaker & Retry resilience engine
 │   ├── tracer.go           # Thread-safe LIFO Trace Stack & cryptographics
 │   ├── transport.go        # Outbound HTTP Client Tracing Transport
 │   └── types.go            # Explicit types (Field, Span)
@@ -108,6 +113,7 @@ orkai-observability/
 │   ├── metrics_test.go     # InMemory Metrics & snapshots tests
 │   ├── middleware_test.go  # HTTP Middleware tests
 │   ├── observability_test.go     # Global Facade tests
+│   ├── resilience_test.go  # Circuit Breaker & Retry resilience tests
 │   ├── tracer_test.go            # LIFO Trace Stack tests
 │   ├── transport_test.go         # Outbound HTTP Client Transport tests
 │   └── types_test.go             # Explicit types tests
@@ -615,6 +621,41 @@ graph TD
     QueueCheck -- "Yes" --> FallbackSynch["Fallback: Write Synchronously to STDOUT"]
 ```
 
+### 12. Resilient Outbound Transport (Circuit Breaker & Retry)
+
+Protect microservices from cascading failures when calling remote APIs or sending remote telemetry over the wire. The resilience engine provides a thread-safe Circuit Breaker state machine coupled with dynamic HTTP client decorators:
+
+```go
+// 1. Initialize a thread-safe Circuit Breaker
+// Ratio threshold = 50% failures, trip after 5 consecutive errors, 30s cooldown
+cb := observability.NewCircuitBreaker(0.50, 5, 30*time.Second)
+
+// 2. Wrap outbound HTTP Client Transport with Retry & Circuit Breaker policies
+// Maximum 3 retries, base exponential backoff delay of 100ms
+resilientTransport := observability.NewResilientRoundTripper(
+	http.DefaultTransport, 
+	cb, 
+	3, 
+	100*time.Millisecond,
+)
+
+client := &http.Client{
+	Transport: resilientTransport,
+	Timeout:   5 * time.Second,
+}
+```
+
+#### State Machine Flowchart
+
+```mermaid
+stateDiagram-v2
+    [*] --> CLOSED : Normal operation
+    CLOSED --> OPEN : Failure rate >= 50% OR consecutive failures >= consecutiveLimit
+    OPEN --> HALF_OPEN : resetTimeout duration elapsed
+    HALF_OPEN --> CLOSED : Success recorded (circuit reset)
+    HALF_OPEN --> OPEN : Outbound call failure recorded (trip again)
+```
+
 ---
 
 ## Running Tests
@@ -670,15 +711,15 @@ $ go test -v ./test/...
 === RUN   TestMetricsGaugeWithLabels
 --- PASS: TestMetricsGaugeWithLabels (0.00s)
 === RUN   TestHTTPMiddlewareNewTrace
-[TRACE] Start /users trace_id=99558e6fadb10264
-{"level":"INFO","service":"test","trace_id":"99558e6fadb10264","msg":"incoming request started","method":"POST","path":"/users"}
-{"level":"INFO","service":"test","trace_id":"99558e6fadb10264","msg":"outgoing request finished","method":"POST","path":"/users","status":201,"duration_ms":0}
+[TRACE] Start /users trace_id=af92789e643005c3
+{"level":"INFO","service":"test","trace_id":"af92789e643005c3","msg":"incoming request started","method":"POST","path":"/users"}
+{"level":"INFO","service":"test","trace_id":"af92789e643005c3","msg":"outgoing request finished","method":"POST","path":"/users","status":201,"duration_ms":0}
 [TRACE] End /users duration=0s
 --- PASS: TestHTTPMiddlewareNewTrace (0.00s)
 === RUN   TestHTTPMiddlewareResumedTrace
 {"level":"INFO","service":"test","trace_id":"db3bda","msg":"incoming request started","method":"GET","path":"/profile"}
 {"level":"INFO","service":"test","trace_id":"db3bda","msg":"outgoing request finished","method":"GET","path":"/profile","status":200,"duration_ms":0}
-[TRACE] End /profile duration=0s
+[TRACE] End /profile duration=528µs
 --- PASS: TestHTTPMiddlewareResumedTrace (0.00s)
 === RUN   TestHTTPMiddlewareW3CTrace
 {"level":"INFO","service":"test","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","msg":"incoming request started","method":"GET","path":"/profile"}
@@ -694,13 +735,21 @@ $ go test -v ./test/...
 --- PASS: TestGlobalFacadeInit (0.00s)
 === RUN   TestGlobalFacadeDelegation
 {"level":"INFO","service":"test-service","msg":"delegated log","key":"val"}
-[TRACE] Start test-span trace_id=e48c28bff45ae36a
+[TRACE] Start test-span trace_id=9416dc704d576c62
 [TRACE] End test-span duration=0s
 === METRICS ===
 test_count: 1
 test_latency_latency_avg: 10ms
 test_gauge: 10.5
 --- PASS: TestGlobalFacadeDelegation (0.00s)
+=== RUN   TestCircuitBreakerTransitionsToOpen
+--- PASS: TestCircuitBreakerTransitionsToOpen (0.00s)
+=== RUN   TestCircuitBreakerTransitionsToClosed
+--- PASS: TestCircuitBreakerTransitionsToClosed (0.02s)
+=== RUN   TestResilientRoundTripperCircuitTrip
+--- PASS: TestResilientRoundTripperCircuitTrip (0.00s)
+=== RUN   TestResilientRoundTripperExponentialRetry
+--- PASS: TestResilientRoundTripperExponentialRetry (0.00s)
 === RUN   TestTracerStart
 --- PASS: TestTracerStart (0.00s)
 === RUN   TestTracerEnd
@@ -714,7 +763,7 @@ test_gauge: 10.5
 === RUN   TestNewIntField
 --- PASS: TestNewIntField (0.00s)
 PASS
-ok  	github.com/wesleyskap/orkai-observability/test	0.718s
+ok  	github.com/wesleyskap/orkai-observability/test	0.733s
 ```
 
 ---
