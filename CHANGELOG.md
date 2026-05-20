@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.0.0] - 2026-05-20
+
+### Changed
+- **Go Version Downgrade:** Downgraded Go version requirement from `1.25.0` to `1.22.0` to support compatibility with older Go downstream projects.
+- **OpenTelemetry Dependencies Adjustment:** Downgraded OpenTelemetry SDK and API dependencies to versions compatible with Go 1.22:
+  - `go.opentelemetry.io/otel` to `v1.30.0`
+  - `go.opentelemetry.io/otel/metric` to `v1.30.0`
+  - `go.opentelemetry.io/otel/sdk` to `v1.27.0`
+  - `go.opentelemetry.io/otel/sdk/metric` to `v1.27.0`
+  - `go.opentelemetry.io/otel/trace` to `v1.30.0`
+- **System Dependency Downgrade:** Downgraded `golang.org/x/sys` to `v0.20.0`.
+
+### Removed
+- **Unused OpenTelemetry Auto-SDK:** Removed `go.opentelemetry.io/auto/sdk` dependency.
+
+---
+
 ## [1.11.0] - 2026-05-18
 
 ### Added
