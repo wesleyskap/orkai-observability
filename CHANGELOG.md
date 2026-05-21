@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.1.0] - 2026-05-21
+
+### Added
+- **HTTP Panic Recovery Middleware:** Implemented `PanicRecoveryMiddleware` to intercept unexpected handler crashes, log call stack traces, return `500 Internal Server Error` in JSON format, and increment `http_panics_total`.
+- **System Resource Telemetry Collector:** Integrated a background resource telemetry worker collecting active Go goroutine counts and memory utilization stats (heap allocations, gc cycles) as gauges accessible via Prometheus exposition.
+- **SQL DB Query Tracing Helper:** Added `TraceSQL` context wrapper initiating trace spans and recording SQL statement execution latencies (`db_query_duration_ms`) labeled by query type and target table.
+- **Log File Rotation Writer:** Created a lightweight, concurrent-safe `RotatingFileWriter` that automatically rolls logs when file sizes cross thresholds, managing backup limits without third-party libraries.
+
 ## [2.0.0] - 2026-05-20
 
 ### Changed

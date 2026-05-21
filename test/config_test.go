@@ -3,7 +3,7 @@ package test
 import (
 	"testing"
 
-	"github.com/wesleyskap/orkai-observability/observability"
+	"github.com/wesleyskap/orkai-observability/v2/observability"
 )
 
 // TestValidateConfigValid verifies configuration with correct inputs.

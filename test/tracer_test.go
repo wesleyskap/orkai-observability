@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wesleyskap/orkai-observability/observability"
+	"github.com/wesleyskap/orkai-observability/v2/observability"
 )
 
 // TestTracerStart verifies trace context, start print, and active trace ID.

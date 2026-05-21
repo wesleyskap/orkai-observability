@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/wesleyskap/orkai-observability/observability"
+	"github.com/wesleyskap/orkai-observability/v2/observability"
 )
 
 func TestHTTPMiddlewareNewTrace(t *testing.T) {

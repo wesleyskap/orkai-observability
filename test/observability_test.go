@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wesleyskap/orkai-observability/observability"
+	"github.com/wesleyskap/orkai-observability/v2/observability"
 )
 
 // TestGlobalFacadeInit verifies global facade initializes correctly.

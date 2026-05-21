@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wesleyskap/orkai-observability/observability"
+	"github.com/wesleyskap/orkai-observability/v2/observability"
 )
 
 // TestMetricsIncrement asserts counter increments and prints correctly.

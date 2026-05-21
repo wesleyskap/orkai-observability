@@ -270,13 +270,15 @@ func (l *JSONLogger) deliverLog(jsonStr string) {
 //
 //	err := logger.Close()
 func (l *JSONLogger) Close() error {
-	if !l.asyncEnabled {
-		return nil
+	if l.asyncEnabled {
+		close(l.asyncStop)
+		l.asyncWg.Wait()
+		close(l.asyncChan)
+		l.asyncEnabled = false
 	}
-	close(l.asyncStop)
-	l.asyncWg.Wait()
-	close(l.asyncChan)
-	l.asyncEnabled = false
+	if closer, ok := l.writer.(io.Closer); ok {
+		return closer.Close()
+	}
 	return nil
 }
 

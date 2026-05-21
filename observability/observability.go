@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"io"
 	"os"
 	"time"
 )
@@ -22,7 +23,10 @@ type GlobalFacade struct {
 }
 
 // globalInstance is the internal singleton facade.
-var globalInstance *GlobalFacade
+var (
+	globalInstance        *GlobalFacade
+	cancelSystemTelemetry context.CancelFunc
+)
 
 // Init initializes the global observability facade instance.
 //
@@ -30,24 +34,53 @@ var globalInstance *GlobalFacade
 //
 //	err := observability.Init(cfg)
 func Init(cfg Config) error {
-	logger := NewJSONLogger(os.Stdout, cfg.ServiceName)
+	logger, err := initLogger(cfg)
+	if err != nil {
+		return err
+	}
+	m, t := initMetricsAndTracer(cfg)
+	globalInstance = &GlobalFacade{Logger: logger, Metrics: m, Tracer: t}
+	initSystemTelemetry(cfg)
+	return nil
+}
+
+func initLogger(cfg Config) (Logger, error) {
+	var writer io.Writer = os.Stdout
+	if cfg.LogFilePath != "" {
+		w, err := NewRotatingFileWriter(cfg.LogFilePath, cfg.LogFileMaxSize, cfg.LogFileMaxBackups)
+		if err != nil {
+			return nil, err
+		}
+		writer = w
+	}
+	logger := NewJSONLogger(writer, cfg.ServiceName)
 	logger.SetLevel(cfg.LogLevel)
 	logger.SetTraceProvider(GetActiveTraceID)
 	if cfg.EnableRateLimit {
-		limiter := NewLogRateLimiter(cfg.RateLimitBurst, cfg.RateLimitRate, true)
-		logger.SetRateLimiter(limiter)
+		logger.SetRateLimiter(NewLogRateLimiter(cfg.RateLimitBurst, cfg.RateLimitRate, true))
 	}
 	if cfg.EnableAsyncLog {
 		logger.ConfigureAsync(true, cfg.AsyncLogChannelSize)
 	}
-	var metrics Metrics = NewInMemoryMetrics(cfg.ServiceName)
-	var tracer Tracer = NewLocalTracer(cfg.ServiceName)
+	return logger, nil
+}
+
+func initMetricsAndTracer(cfg Config) (Metrics, Tracer) {
+	var m Metrics = NewInMemoryMetrics(cfg.ServiceName)
+	var t Tracer = NewLocalTracer(cfg.ServiceName)
 	if cfg.EnableOTel {
-		metrics = NewOTelMetrics(cfg.OTelMeterProvider, cfg.ServiceName)
-		tracer = NewOTelTracer(cfg.OTelTracerProvider, cfg.ServiceName)
+		m = NewOTelMetrics(cfg.OTelMeterProvider, cfg.ServiceName)
+		t = NewOTelTracer(cfg.OTelTracerProvider, cfg.ServiceName)
 	}
-	globalInstance = &GlobalFacade{Logger: logger, Metrics: metrics, Tracer: tracer}
-	return nil
+	return m, t
+}
+
+func initSystemTelemetry(cfg Config) {
+	if cfg.EnableSystemTelemetry {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancelSystemTelemetry = cancel
+		StartSystemTelemetry(ctx, cfg.SystemTelemetryInterval)
+	}
 }
 
 // SetLogLevel delegates a log level change to the global logger.
@@ -249,12 +282,27 @@ func Dump() {
 	}
 }
 
+// GetSummary retrieves the current global metrics snapshot.
+//
+// Usage example:
+//
+//	summary := observability.GetSummary()
+func GetSummary() MetricsSummary {
+	if globalInstance != nil {
+		return globalInstance.Metrics.GetSummary()
+	}
+	return MetricsSummary{}
+}
+
 // Close gracefully flushes all pending logs and terminates any async resources.
 //
 // Usage example:
 //
 //	defer observability.Close()
 func Close() {
+	if cancelSystemTelemetry != nil {
+		cancelSystemTelemetry()
+	}
 	if globalInstance != nil {
 		if closer, ok := globalInstance.Logger.(interface{ Close() error }); ok {
 			_ = closer.Close()

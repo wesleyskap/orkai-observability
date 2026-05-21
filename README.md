@@ -87,6 +87,10 @@ sequenceDiagram
 * **Advanced Metrics Percentiles:** Thread-safe memory-bounded sliding-window latency reservoirs (capped at 2000 samples) to compute accurate p50, p90, and p99 distributions.
 * **Prometheus Cumulative Histograms:** Extended HTTP `/metrics` handler exporting latency metrics into scrapable Prometheus histogram blocks (`_bucket`, `_sum`, `_count`) alongside JSON.
 * **OpenTelemetry (OTel) Semantic Bridge:** Semantic adapters (`NewOTelTracer`, `NewOTelMetrics`) mapping Orkai facades to the official `go.opentelemetry.io/otel` SDK with dual-routing and fallback.
+* **HTTP Panic Recovery Middleware:** Intercepts unhandled panics inside HTTP handlers, logs the stack trace and panic details context-aware, records metrics, and returns a standardized `500 Internal Server Error` JSON response.
+* **Periodic Go Runtime Metrics Collector:** Periodically captures and reports Go runtime diagnostics (goroutine counts, heap allocation/system memory bytes, and cumulative GC cycle runs) to the metrics system in a background loop.
+* **SQL DB Query Tracing Helper:** An easy wrapper around SQL query execution that automatically spans the duration, counts queries, aggregates durations in metric histograms, and handles context trace correlation.
+* **Size-Based Log Rotation File Writer:** A thread-safe, size-bounded `io.WriteCloser` implementation that rotates output log files automatically when size limits are reached and manages a configured backup depth limit.
 
 ---
 
@@ -99,14 +103,20 @@ orkai-observability/
 │       └── main.go         # API simulation entrypoint
 ├── observability/
 │   ├── config.go           # Configuration validation
+│   ├── context.go          # Context-aware helpers
 │   ├── exporter.go         # Metrics HTTP Exporter
+│   ├── limiter.go          # Rate limiting helpers
 │   ├── logger.go           # High-performance structured JSON Logger
 │   ├── metrics.go          # Concurrent safe in-memory metrics
 │   ├── middleware.go       # Reusable HTTP Tracing & Logging Middleware
 │   ├── observability.go    # Global Facade & package-level API
 │   ├── otel_bridge.go      # OpenTelemetry SDK semantic adapters
+│   ├── panic_middleware.go # HTTP Panic Recovery Middleware
 │   ├── propagation.go      # Multi-standard context propagation
 │   ├── resilience.go       # Circuit Breaker & Retry resilience engine
+│   ├── rotating_file.go    # Size-Based Log Rotation File Writer
+│   ├── sql_tracer.go       # SQL DB Query Tracing Helper
+│   ├── sys_telemetry.go    # Periodic Go Runtime Metrics Collector
 │   ├── tracer.go           # Thread-safe LIFO Trace Stack & cryptographics
 │   ├── transport.go        # Outbound HTTP Client Tracing Transport
 │   └── types.go            # Explicit types (Field, Span)
@@ -118,8 +128,12 @@ orkai-observability/
 │   ├── middleware_test.go  # HTTP Middleware tests
 │   ├── observability_test.go     # Global Facade tests
 │   ├── otel_bridge_test.go       # OpenTelemetry bridge integration tests
+│   ├── panic_middleware_test.go  # HTTP Panic Recovery Middleware tests
 │   ├── percentiles_test.go # Latency percentiles & histogram tests
 │   ├── resilience_test.go  # Circuit Breaker & Retry resilience tests
+│   ├── rotating_file_test.go      # Rotating File Writer tests
+│   ├── sql_tracer_test.go         # SQL DB Query Tracing Helper tests
+│   ├── sys_telemetry_test.go      # System Runtime Metrics tests
 │   ├── tracer_test.go            # LIFO Trace Stack tests
 │   ├── transport_test.go         # Outbound HTTP Client Transport tests
 │   └── types_test.go             # Explicit types tests
@@ -788,6 +802,178 @@ graph TD
     Bridge --> LocalSDK["Forward to Local InMemoryMetrics Engine"]
     OTelSDK --> Collector["OTel Collector (Datadog/Dynatrace/Jaeger)"]
     LocalSDK --> Scrapable["Local Endpoint /metrics (Prometheus / JSON)"]
+```
+
+---
+
+### 15. HTTP Panic Recovery Middleware
+
+Provides safety and reliability for HTTP servers by recovering from unhandled handler panics, logging the stack trace, recording metrics, and returning a structured JSON response.
+
+Simply wrap your HTTP handlers using [PanicRecoveryMiddleware](file:///c:/Users/User/develop/estudo/orkai-observability/observability/panic_middleware.go#L9):
+
+```go
+package main
+
+import (
+	"net/http"
+	"github.com/wesleyskap/orkai-observability/observability"
+)
+
+func main() {
+	cfg := observability.Config{ServiceName: "user-service", Environment: "production"}
+	_ = observability.Init(cfg)
+	defer observability.Close()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/panic", func(w http.ResponseWriter, req *http.Request) {
+		panic("something went terribly wrong!")
+	})
+
+	// Wrap mux with PanicRecoveryMiddleware
+	http.ListenAndServe(":8080", observability.PanicRecoveryMiddleware(mux))
+}
+```
+
+When a panic occurs:
+1. It is caught by the middleware.
+2. The panic reason and stack trace are logged context-aware under [panic_middleware.go](file:///c:/Users/User/develop/estudo/orkai-observability/observability/panic_middleware.go).
+3. The counter metric `http_panics_total` is incremented.
+4. An RFC-7807/standardized `500 Internal Server Error` response is returned:
+   ```json
+   {"error":"Internal Server Error"}
+   ```
+
+---
+
+### 16. Periodic Go Runtime Metrics Collector
+
+Collects memory allocations, heap statistics, garbage collections, and goroutine counts on a customizable ticker interval.
+
+Enable Go runtime metrics telemetry by setting configuration flags during initialization:
+
+```go
+package main
+
+import (
+	"context"
+	"time"
+	"github.com/wesleyskap/orkai-observability/observability"
+)
+
+func main() {
+	cfg := observability.Config{
+		ServiceName:             "worker-service",
+		Environment:             "production",
+		EnableSystemTelemetry:   true,             // Enable background collection
+		SystemTelemetryInterval: 5 * time.Second,  // Sample every 5 seconds
+	}
+	_ = observability.Init(cfg)
+	defer observability.Close()
+
+	// Application runtime code...
+	time.Sleep(15 * time.Second)
+}
+```
+
+The system automatically spins up a background telemetry loop under [sys_telemetry.go](file:///c:/Users/User/develop/estudo/orkai-observability/observability/sys_telemetry.go) and writes metrics that can be queried from `/metrics` or standard dumps:
+- `go_goroutines`: Number of active goroutines.
+- `go_mem_heap_alloc_bytes`: Bytes of allocated heap objects.
+- `go_mem_heap_sys_bytes`: Bytes of heap memory obtained from the OS.
+- `go_gc_completed_count`: Number of completed GC cycles.
+
+---
+
+### 17. SQL DB Query Tracing Helper
+
+Automates SQL query duration tracing, status logging, and metric recording.
+
+Use [TraceSQL](file:///c:/Users/User/develop/estudo/orkai-observability/observability/sql_tracer.go#L9) inside query execution wrappers:
+
+```go
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"github.com/wesleyskap/orkai-observability/observability"
+)
+
+type UserRepository struct {
+	db *sql.DB
+}
+
+func (r *UserRepository) GetUserByID(ctx context.Context, id int) (string, error) {
+	// Automatically generates span "SQL:SELECT:users" and returns end callback
+	traceCtx, endTrace := observability.TraceSQL(ctx, "SELECT", "users")
+	defer endTrace()
+
+	var name string
+	err := r.db.QueryRowContext(traceCtx, "SELECT name FROM users WHERE id = ?", id).Scan(&name)
+	if err != nil {
+		observability.ErrorContext(traceCtx, "query failed", err)
+		return "", err
+	}
+
+	return name, nil
+}
+```
+
+Features:
+- Dynamically generates nested LIFO trace spans named `SQL:<operation>:<table>`.
+- Records latency metrics under the key `db_query_duration_ms` with tags `query_type` and `table`.
+- Seamlessly propagates context-aware trace correlation IDs down the call chain.
+
+---
+
+### 18. Size-Based Log Rotation File Writer
+
+A thread-safe, size-bounded file writer that rotates logs automatically once a threshold is reached and manages a configured backup depth limit.
+
+You can configure it directly via [Config](file:///c:/Users/User/develop/estudo/orkai-observability/observability/config.go#L28) at startup:
+
+```go
+package main
+
+import (
+	"github.com/wesleyskap/orkai-observability/observability"
+)
+
+func main() {
+	cfg := observability.Config{
+		ServiceName:       "api-service",
+		Environment:       "production",
+		LogFilePath:       "/var/log/app.log",
+		LogFileMaxSize:    10 * 1024 * 1024, // 10 Megabytes max file size
+		LogFileMaxBackups: 5,                // Maintain up to 5 backups
+	}
+	_ = observability.Init(cfg)
+	defer observability.Close()
+
+	// Logs will now be automatically written to /var/log/app.log and rotated!
+	observability.Info("app started successfully")
+}
+```
+
+Alternatively, instantiate [RotatingFileWriter](file:///c:/Users/User/develop/estudo/orkai-observability/observability/rotating_file.go#L10) manually for custom files:
+
+```go
+package main
+
+import (
+	"github.com/wesleyskap/orkai-observability/observability"
+)
+
+func main() {
+	// Create a writer targeting a log file with 1MB max size and 3 backups max
+	writer, err := observability.NewRotatingFileWriter("custom.log", 1024*1024, 3)
+	if err != nil {
+		panic(err)
+	}
+	defer writer.Close()
+
+	_, _ = writer.Write([]byte("custom rotating log line\n"))
+}
 ```
 
 ---

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wesleyskap/orkai-observability/observability"
+	"github.com/wesleyskap/orkai-observability/v2/observability"
 )
 
 // TestMetricsHTTPHandlerSuccess asserts that JSON is returned by default.

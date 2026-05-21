@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
-	"github.com/wesleyskap/orkai-observability/observability"
 	"time"
+
+	"github.com/wesleyskap/orkai-observability/v2/observability"
 )
 
 // main is the entrypoint simulating server requests and showing logs/metrics.

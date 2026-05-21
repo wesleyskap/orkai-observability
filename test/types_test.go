@@ -3,7 +3,7 @@ package test
 import (
 	"testing"
 
-	"github.com/wesleyskap/orkai-observability/observability"
+	"github.com/wesleyskap/orkai-observability/v2/observability"
 )
 
 // TestNewStringField verifies the construction of string-typed logging fields.

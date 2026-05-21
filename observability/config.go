@@ -4,6 +4,7 @@ package observability
 
 import (
 	"errors"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -25,17 +26,22 @@ import (
 //		EnableOTel:          true,
 //	}
 type Config struct {
-	ServiceName         string
-	Environment         string
-	LogLevel            string
-	EnableRateLimit     bool
-	RateLimitBurst      int
-	RateLimitRate       int
-	EnableAsyncLog      bool
-	AsyncLogChannelSize int
-	EnableOTel          bool
-	OTelTracerProvider  trace.TracerProvider
-	OTelMeterProvider   metric.MeterProvider
+	ServiceName             string
+	Environment             string
+	LogLevel                string
+	EnableRateLimit         bool
+	RateLimitBurst          int
+	RateLimitRate           int
+	EnableAsyncLog          bool
+	AsyncLogChannelSize     int
+	EnableOTel              bool
+	OTelTracerProvider      trace.TracerProvider
+	OTelMeterProvider       metric.MeterProvider
+	EnableSystemTelemetry   bool
+	SystemTelemetryInterval time.Duration
+	LogFilePath             string
+	LogFileMaxSize          int64
+	LogFileMaxBackups       int
 }
 
 // ValidateConfig verifies that the configuration fields are not empty.

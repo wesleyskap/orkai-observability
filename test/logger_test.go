@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/wesleyskap/orkai-observability/observability"
+	"github.com/wesleyskap/orkai-observability/v2/observability"
 )
 
 // FakeWriter is a named mock for io.Writer to capture output.

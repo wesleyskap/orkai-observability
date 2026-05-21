@@ -1,4 +1,4 @@
-module github.com/wesleyskap/orkai-observability
+module github.com/wesleyskap/orkai-observability/v2
 
 go 1.22.0
 
