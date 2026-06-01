@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"sync/atomic"
 	"time"
 )
 
@@ -25,7 +26,7 @@ type GlobalFacade struct {
 
 // globalInstance is the internal singleton facade.
 var (
-	globalInstance        *GlobalFacade
+	globalInstance        atomic.Pointer[GlobalFacade]
 	cancelSystemTelemetry context.CancelFunc
 )
 
@@ -40,7 +41,8 @@ func Init(cfg Config) error {
 		return err
 	}
 	m, t := initMetricsAndTracer(cfg)
-	globalInstance = &GlobalFacade{Logger: logger, Metrics: m, Tracer: t, Config: cfg}
+	inst := &GlobalFacade{Logger: logger, Metrics: m, Tracer: t, Config: cfg}
+	globalInstance.Store(inst)
 	initSystemTelemetry(cfg)
 	return nil
 }
@@ -90,8 +92,8 @@ func initSystemTelemetry(cfg Config) {
 //
 //	observability.SetLogLevel("debug")
 func SetLogLevel(levelStr string) {
-	if globalInstance != nil {
-		globalInstance.Logger.SetLevel(levelStr)
+	if inst := getGlobal(); inst != nil {
+		inst.Logger.SetLevel(levelStr)
 	}
 }
 
@@ -101,8 +103,8 @@ func SetLogLevel(levelStr string) {
 //
 //	observability.Info("processing order", observability.NewStringField("id", "321"))
 func Info(msg string, fields ...Field) {
-	if globalInstance != nil {
-		globalInstance.Logger.Info(msg, fields...)
+	if inst := getGlobal(); inst != nil {
+		inst.Logger.Info(msg, fields...)
 	}
 }
 
@@ -112,8 +114,8 @@ func Info(msg string, fields ...Field) {
 //
 //	observability.Debug("cache lookup result", observability.NewStringField("status", "hit"))
 func Debug(msg string, fields ...Field) {
-	if globalInstance != nil {
-		globalInstance.Logger.Debug(msg, fields...)
+	if inst := getGlobal(); inst != nil {
+		inst.Logger.Debug(msg, fields...)
 	}
 }
 
@@ -123,8 +125,8 @@ func Debug(msg string, fields ...Field) {
 //
 //	observability.Warn("deprecated API route called")
 func Warn(msg string, fields ...Field) {
-	if globalInstance != nil {
-		globalInstance.Logger.Warn(msg, fields...)
+	if inst := getGlobal(); inst != nil {
+		inst.Logger.Warn(msg, fields...)
 	}
 }
 
@@ -134,8 +136,8 @@ func Warn(msg string, fields ...Field) {
 //
 //	observability.Error("failed to process credit card payment", err)
 func Error(msg string, err error, fields ...Field) {
-	if globalInstance != nil {
-		globalInstance.Logger.Error(msg, err, fields...)
+	if inst := getGlobal(); inst != nil {
+		inst.Logger.Error(msg, err, fields...)
 	}
 }
 
@@ -145,8 +147,8 @@ func Error(msg string, err error, fields ...Field) {
 //
 //	observability.InfoContext(ctx, "processing order", observability.NewStringField("id", "321"))
 func InfoContext(ctx context.Context, msg string, fields ...Field) {
-	if globalInstance != nil {
-		globalInstance.Logger.InfoContext(ctx, msg, fields...)
+	if inst := getGlobal(); inst != nil {
+		inst.Logger.InfoContext(ctx, msg, fields...)
 	}
 }
 
@@ -156,8 +158,8 @@ func InfoContext(ctx context.Context, msg string, fields ...Field) {
 //
 //	observability.DebugContext(ctx, "cache lookup result", observability.NewStringField("status", "hit"))
 func DebugContext(ctx context.Context, msg string, fields ...Field) {
-	if globalInstance != nil {
-		globalInstance.Logger.DebugContext(ctx, msg, fields...)
+	if inst := getGlobal(); inst != nil {
+		inst.Logger.DebugContext(ctx, msg, fields...)
 	}
 }
 
@@ -167,8 +169,8 @@ func DebugContext(ctx context.Context, msg string, fields ...Field) {
 //
 //	observability.WarnContext(ctx, "deprecated API route called")
 func WarnContext(ctx context.Context, msg string, fields ...Field) {
-	if globalInstance != nil {
-		globalInstance.Logger.WarnContext(ctx, msg, fields...)
+	if inst := getGlobal(); inst != nil {
+		inst.Logger.WarnContext(ctx, msg, fields...)
 	}
 }
 
@@ -178,8 +180,8 @@ func WarnContext(ctx context.Context, msg string, fields ...Field) {
 //
 //	observability.ErrorContext(ctx, "payment fail", err)
 func ErrorContext(ctx context.Context, msg string, err error, fields ...Field) {
-	if globalInstance != nil {
-		globalInstance.Logger.ErrorContext(ctx, msg, err, fields...)
+	if inst := getGlobal(); inst != nil {
+		inst.Logger.ErrorContext(ctx, msg, err, fields...)
 	}
 }
 
@@ -189,8 +191,8 @@ func ErrorContext(ctx context.Context, msg string, err error, fields ...Field) {
 //
 //	observability.Counter("http_requests_total")
 func Counter(name string) {
-	if globalInstance != nil {
-		globalInstance.Metrics.IncCounter(name)
+	if inst := getGlobal(); inst != nil {
+		inst.Metrics.IncCounter(name)
 	}
 }
 
@@ -200,8 +202,8 @@ func Counter(name string) {
 //
 //	observability.CounterWithLabels("http_requests_total", map[string]string{"method": "POST"})
 func CounterWithLabels(name string, labels map[string]string) {
-	if globalInstance != nil {
-		globalInstance.Metrics.IncCounterWithLabels(name, labels)
+	if inst := getGlobal(); inst != nil {
+		inst.Metrics.IncCounterWithLabels(name, labels)
 	}
 }
 
@@ -211,8 +213,8 @@ func CounterWithLabels(name string, labels map[string]string) {
 //
 //	observability.Latency("db_query_duration", duration)
 func Latency(name string, d time.Duration) {
-	if globalInstance != nil {
-		globalInstance.Metrics.RecordLatency(name, d)
+	if inst := getGlobal(); inst != nil {
+		inst.Metrics.RecordLatency(name, d)
 	}
 }
 
@@ -222,8 +224,8 @@ func Latency(name string, d time.Duration) {
 //
 //	observability.LatencyWithLabels("db_query", 10*time.Millisecond, map[string]string{"op": "select"})
 func LatencyWithLabels(name string, d time.Duration, labels map[string]string) {
-	if globalInstance != nil {
-		globalInstance.Metrics.RecordLatencyWithLabels(name, d, labels)
+	if inst := getGlobal(); inst != nil {
+		inst.Metrics.RecordLatencyWithLabels(name, d, labels)
 	}
 }
 
@@ -233,8 +235,8 @@ func LatencyWithLabels(name string, d time.Duration, labels map[string]string) {
 //
 //	observability.Gauge("thread_count", 42)
 func Gauge(name string, value float64) {
-	if globalInstance != nil {
-		globalInstance.Metrics.SetGauge(name, value)
+	if inst := getGlobal(); inst != nil {
+		inst.Metrics.SetGauge(name, value)
 	}
 }
 
@@ -244,8 +246,8 @@ func Gauge(name string, value float64) {
 //
 //	observability.GaugeWithLabels("cpu_usage", 85.5, map[string]string{"core": "0"})
 func GaugeWithLabels(name string, value float64, labels map[string]string) {
-	if globalInstance != nil {
-		globalInstance.Metrics.SetGaugeWithLabels(name, value, labels)
+	if inst := getGlobal(); inst != nil {
+		inst.Metrics.SetGaugeWithLabels(name, value, labels)
 	}
 }
 
@@ -255,8 +257,8 @@ func GaugeWithLabels(name string, value float64, labels map[string]string) {
 //
 //	ctx, span := observability.StartSpan(context.Background(), "DBQuery")
 func StartSpan(ctx context.Context, name string) (context.Context, Span) {
-	if globalInstance != nil {
-		return globalInstance.Tracer.StartTrace(ctx, name)
+	if inst := getGlobal(); inst != nil {
+		return inst.Tracer.StartTrace(ctx, name)
 	}
 	return ctx, Span{}
 }
@@ -267,8 +269,8 @@ func StartSpan(ctx context.Context, name string) (context.Context, Span) {
 //
 //	observability.EndSpan(span)
 func EndSpan(span Span) {
-	if globalInstance != nil {
-		globalInstance.Tracer.EndTrace(span)
+	if inst := getGlobal(); inst != nil {
+		inst.Tracer.EndTrace(span)
 	}
 }
 
@@ -278,8 +280,8 @@ func EndSpan(span Span) {
 //
 //	observability.Dump()
 func Dump() {
-	if globalInstance != nil {
-		globalInstance.Metrics.Print()
+	if inst := getGlobal(); inst != nil {
+		inst.Metrics.Print()
 	}
 }
 
@@ -289,8 +291,8 @@ func Dump() {
 //
 //	summary := observability.GetSummary()
 func GetSummary() MetricsSummary {
-	if globalInstance != nil {
-		return globalInstance.Metrics.GetSummary()
+	if inst := getGlobal(); inst != nil {
+		return inst.Metrics.GetSummary()
 	}
 	return MetricsSummary{}
 }
@@ -301,8 +303,8 @@ func GetSummary() MetricsSummary {
 //
 //	observability.SetLogger(customLogger)
 func SetLogger(l Logger) {
-	if globalInstance != nil {
-		globalInstance.Logger = l
+	if inst := getGlobal(); inst != nil {
+		inst.Logger = l
 	}
 }
 
@@ -315,9 +317,13 @@ func Close() {
 	if cancelSystemTelemetry != nil {
 		cancelSystemTelemetry()
 	}
-	if globalInstance != nil {
-		if closer, ok := globalInstance.Logger.(interface{ Close() error }); ok {
+	if inst := getGlobal(); inst != nil {
+		if closer, ok := inst.Logger.(interface{ Close() error }); ok {
 			_ = closer.Close()
 		}
 	}
+}
+
+func getGlobal() *GlobalFacade {
+	return globalInstance.Load()
 }

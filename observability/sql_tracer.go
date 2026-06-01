@@ -29,10 +29,11 @@ func TraceSQL(ctx context.Context, op string, table string) (context.Context, fu
 }
 
 func checkSlowQuery(ctx context.Context, op string, table string, dur time.Duration) {
-	if globalInstance == nil || !globalInstance.Config.EnableSlowQueryAlert {
+	inst := getGlobal()
+	if inst == nil || !inst.Config.EnableSlowQueryAlert {
 		return
 	}
-	if dur < globalInstance.Config.SlowQueryThreshold {
+	if dur < inst.Config.SlowQueryThreshold {
 		return
 	}
 	logSlowQuery(ctx, op, table, dur)
