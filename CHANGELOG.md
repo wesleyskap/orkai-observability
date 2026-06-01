@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.2.0] - 2026-06-01
+
+### Added
+- **Slow Query Alerts:** Integrated slow query warning alerts (`WARN`) inside `TraceSQL` that trigger automatically if query execution times exceed configurable thresholds (`EnableSlowQueryAlert` and `SlowQueryThreshold` properties in `Config`).
+- **W3C Baggage Context Propagation:** Implemented transparent distributed propagation of key-value metadata pairs (W3C Baggage standard) across microservice boundaries, automatically extracting baggage in `HTTPMiddleware`, propagating it in `TracingRoundTripper`, and appending fields (e.g., `baggage.key`) to context-aware JSON log messages.
+
 ## [2.1.0] - 2026-05-21
 
 ### Added

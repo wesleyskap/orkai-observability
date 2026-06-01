@@ -363,6 +363,7 @@ func (l *JSONLogger) InfoContext(ctx context.Context, msg string, fields ...Fiel
 		return
 	}
 	traceID := l.resolveTraceID(ctx)
+	fields = appendBaggageFields(ctx, fields)
 	l.writeEntry("INFO", traceID, msg, fields)
 }
 
@@ -372,6 +373,7 @@ func (l *JSONLogger) WarnContext(ctx context.Context, msg string, fields ...Fiel
 		return
 	}
 	traceID := l.resolveTraceID(ctx)
+	fields = appendBaggageFields(ctx, fields)
 	l.writeEntry("WARN", traceID, msg, fields)
 }
 
@@ -386,6 +388,7 @@ func (l *JSONLogger) ErrorContext(ctx context.Context, msg string, err error, fi
 	if stack != "" {
 		errFields = append(errFields, NewStringField("stack_trace", stack))
 	}
+	errFields = appendBaggageFields(ctx, errFields)
 	l.writeEntry("ERROR", traceID, msg, errFields)
 }
 
@@ -395,5 +398,14 @@ func (l *JSONLogger) DebugContext(ctx context.Context, msg string, fields ...Fie
 		return
 	}
 	traceID := l.resolveTraceID(ctx)
+	fields = appendBaggageFields(ctx, fields)
 	l.writeEntry("DEBUG", traceID, msg, fields)
+}
+
+func appendBaggageFields(ctx context.Context, fields []Field) []Field {
+	bag := BaggageFromContext(ctx)
+	for k, v := range bag {
+		fields = append(fields, NewStringField("baggage."+k, v))
+	}
+	return fields
 }

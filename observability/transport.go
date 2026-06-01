@@ -28,9 +28,11 @@ func NewTracingRoundTripper(next http.RoundTripper) *TracingRoundTripper {
 //	resp, err := client.Transport.RoundTrip(req)
 func (rt *TracingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	activeID := GetActiveTraceID()
-	if activeID != "" {
+	baggage := BaggageFromContext(req.Context())
+	if activeID != "" || len(baggage) > 0 {
 		reqCopy := req.Clone(req.Context())
 		InjectTraceID(reqCopy, activeID)
+		InjectBaggage(reqCopy, baggage)
 		return rt.next.RoundTrip(reqCopy)
 	}
 	return rt.next.RoundTrip(req)

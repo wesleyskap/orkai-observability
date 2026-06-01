@@ -527,15 +527,18 @@ Achieve end-to-end transactional observability across distributed microservice b
 // Create a client equipped with our tracing round-tripper
 client := observability.NewTracingClient()
 
-// Make request - trace context (W3C traceparent and b3 headers) is injected automatically
+// Inject W3C baggage in context
+ctx = observability.ContextWithBaggage(ctx, map[string]string{"tenant_id": "corp-a", "user_role": "admin"})
+
+// Make request - trace context and baggage are injected automatically
 req, _ := http.NewRequestWithContext(ctx, "GET", "https://api.internal/profile", nil)
 resp, err := client.Do(req)
 
 // 2. In your downstream Microservice HTTP Handler (Inbound Request):
-// The HTTPMiddleware automatically extracts trace context, restoring the lineage
+// The HTTPMiddleware automatically extracts trace context and baggage, restoring context
 mux := http.NewServeMux()
 mux.HandleFunc("/profile", func(w http.ResponseWriter, r *http.Request) {
-    // The logger automatically resolves and correlates the parent trace ID
+    // The logger automatically resolves the parent trace ID and outputs baggage fields (e.g., "baggage.tenant_id": "corp-a")
     observability.InfoContext(r.Context(), "handling profile lookup")
 })
 loggedRouter := observability.HTTPMiddleware(mux)
@@ -923,6 +926,18 @@ Features:
 - Dynamically generates nested LIFO trace spans named `SQL:<operation>:<table>`.
 - Records latency metrics under the key `db_query_duration_ms` with tags `query_type` and `table`.
 - Seamlessly propagates context-aware trace correlation IDs down the call chain.
+- **Slow Query Alerts:** Automatically logs a warning entry (`WARN`) when a query duration exceeds the configured threshold.
+
+To enable slow query tracking, set configuration options during startup:
+```go
+cfg := observability.Config{
+	ServiceName:          "user-service",
+	Environment:          "production",
+	EnableSlowQueryAlert: true,
+	SlowQueryThreshold:   100 * time.Millisecond, // Alert on queries exceeding 100ms
+}
+_ = observability.Init(cfg)
+```
 
 ---
 
