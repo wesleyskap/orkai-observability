@@ -20,6 +20,7 @@ type GlobalFacade struct {
 	Logger  Logger
 	Metrics Metrics
 	Tracer  Tracer
+	Config  Config
 }
 
 // globalInstance is the internal singleton facade.
@@ -39,7 +40,7 @@ func Init(cfg Config) error {
 		return err
 	}
 	m, t := initMetricsAndTracer(cfg)
-	globalInstance = &GlobalFacade{Logger: logger, Metrics: m, Tracer: t}
+	globalInstance = &GlobalFacade{Logger: logger, Metrics: m, Tracer: t, Config: cfg}
 	initSystemTelemetry(cfg)
 	return nil
 }
@@ -292,6 +293,17 @@ func GetSummary() MetricsSummary {
 		return globalInstance.Metrics.GetSummary()
 	}
 	return MetricsSummary{}
+}
+
+// SetLogger overrides the active global logger.
+//
+// Usage example:
+//
+//	observability.SetLogger(customLogger)
+func SetLogger(l Logger) {
+	if globalInstance != nil {
+		globalInstance.Logger = l
+	}
 }
 
 // Close gracefully flushes all pending logs and terminates any async resources.

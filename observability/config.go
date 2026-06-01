@@ -42,6 +42,8 @@ type Config struct {
 	LogFilePath             string
 	LogFileMaxSize          int64
 	LogFileMaxBackups       int
+	EnableSlowQueryAlert    bool
+	SlowQueryThreshold      time.Duration
 }
 
 // ValidateConfig verifies that the configuration fields are not empty.

@@ -36,3 +36,33 @@ func TraceIDFromContext(ctx context.Context) string {
 	}
 	return ""
 }
+
+const baggageKey contextKey = "baggage"
+
+// ContextWithBaggage returns a new context containing the provided baggage.
+//
+// Usage example:
+//
+//	ctx := observability.ContextWithBaggage(ctx, map[string]string{"user": "alice"})
+func ContextWithBaggage(ctx context.Context, baggage map[string]string) context.Context {
+	if len(baggage) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, baggageKey, baggage)
+}
+
+// BaggageFromContext extracts the baggage map from the given context if present.
+//
+// Usage example:
+//
+//	baggage := observability.BaggageFromContext(ctx)
+func BaggageFromContext(ctx context.Context) map[string]string {
+	if ctx == nil {
+		return nil
+	}
+	val := ctx.Value(baggageKey)
+	if baggage, ok := val.(map[string]string); ok {
+		return baggage
+	}
+	return nil
+}
