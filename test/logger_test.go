@@ -209,3 +209,21 @@ func TestAsyncLoggerSaturation(t *testing.T) {
 		t.Fatalf("expected all logs to be preserved via fallback, got only %d", len(lines))
 	}
 }
+
+// TestJSONLoggerPIIRegexMasking verifies pattern-based PII regex masking.
+func TestJSONLoggerPIIRegexMasking(t *testing.T) {
+	fw := &FakeWriter{}
+	logger := observability.NewJSONLogger(fw, "test-service")
+
+	logger.Info("user input", observability.NewStringField("random_key", "Meu CPF é 123.456.789-00 e meu cartão é 1234-5678-9012-3456"))
+	output := fw.Buf.String()
+	if strings.Contains(output, "123.456.789-00") {
+		t.Errorf("expected CPF to be masked, got: %s", output)
+	}
+	if strings.Contains(output, "1234-5678-9012-3456") {
+		t.Errorf("expected credit card to be masked, got: %s", output)
+	}
+	if !strings.Contains(output, "[MASKED_PATTERN]") {
+		t.Errorf("expected [MASKED_PATTERN] in output, got: %s", output)
+	}
+}

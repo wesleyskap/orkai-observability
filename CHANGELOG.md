@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.3.0] - 2026-06-04
+
+### Added
+- **Regex-Based PII Masking:** Extended the PII log masking feature to scan and obfuscate values matching structured patterns (CPF, JWT, Credit Card details) regardless of their field name, replacing matches with `[MASKED_PATTERN]`.
+- **Custom Regex Masking API:** Exposed a thread-safe `RegisterPIIPattern` function to register custom patterns dynamically.
+- **HTTP Payload Sampling & Logging:** Upgraded `HTTPMiddleware` to support request and response body capture and logging. Configurable sample rate (`PayloadLoggingSample`) and payload size limits (`MaxPayloadLogSizeBytes`) prevent telemetry bloat, with automatic fallback ensuring status codes `>= 500` are always logged.
+
 ## [2.2.0] - 2026-06-01
 
 ### Added

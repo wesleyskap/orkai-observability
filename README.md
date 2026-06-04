@@ -248,29 +248,29 @@ Provides out-of-the-box integrations for high-performance HTTP web servers to au
 
 ### 1. HTTP Middleware
 
-Simply wrap your router or mux handler with `observability.HTTPMiddleware` in a single line. It will automatically handle spans, log request start/end, and track request durations:
+Simply wrap your router or mux handler with `observability.HTTPMiddleware` in a single line. It will automatically handle spans, log request start/end, and track request durations.
+
+#### HTTP Request & Response Payload Logging
+
+You can enable payload sampling to capture request and response bodies up to a configured size limit (e.g. for debugging):
 
 ```go
-package main
-
-import (
-	"net/http"
-	"github.com/wesleyskap/orkai-observability/observability"
-)
-
-func main() {
-	cfg := observability.Config{ServiceName: "api-service", Environment: "prod"}
-	_ = observability.Init(cfg)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/hello", func(w http.ResponseWriter, req *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("Hello, World!"))
-	})
-
-	// Wrap mux in a single line to enable full HTTP Tracing & Logging!
-	http.ListenAndServe(":8080", observability.HTTPMiddleware(mux))
+cfg := observability.Config{
+	ServiceName:            "api-service",
+	Environment:            "dev",
+	EnablePayloadLogging:   true,
+	PayloadLoggingSample:   0.1, // Sample 10% of requests (status >= 500 always gets logged)
+	MaxPayloadLogSizeBytes: 2048, // Limit capture to 2KB
 }
+_ = observability.Init(cfg)
+
+mux := http.NewServeMux()
+mux.HandleFunc("/users", func(w http.ResponseWriter, req *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"success"}`))
+})
+
+http.ListenAndServe(":8080", observability.HTTPMiddleware(mux))
 ```
 
 ### 2. Live Metrics Exporter (JSON & Prometheus)
@@ -309,7 +309,7 @@ resp, err := client.Get("https://api.external.service/users/me")
 
 ### 5. PII Log Masking & Sanitization
 
-Protect sensitive PII (Personally Identifiable Information) data against accidental leakage in structure logs. The package automatically filters and obfuscates values when keys contain keywords like `password`, `token`, `secret`, `cvv`, `card`, `cpf`, or `email`:
+Protect sensitive PII (Personally Identifiable Information) data against accidental leakage in structured logs. The package automatically filters and obfuscates values when keys contain keywords like `password`, `token`, `secret`, `cvv`, `card`, `cpf`, or `email`:
 
 Ensure strict compliance with data safety regulations (such as LGPD and GDPR) by automatically masking sensitive field values inside the structured JSON logs.
 
@@ -331,6 +331,24 @@ Add custom PII keywords to the global log sanitization list at runtime:
 ```go
 // Add custom keywords (case-insensitive)
 observability.AddSensitiveKeys("socialSecurityNumber", "apiKey")
+```
+
+#### Regex-Based Value Sanitization (Regex Masking)
+
+The package automatically scans all logged string field values for structured formats such as CPFs, JWT tokens, and Credit Cards, replacing matched substrings with `[MASKED_PATTERN]`, even if the field keys themselves are not registered as sensitive:
+
+```go
+// Even with a generic field name, sensitive patterns in values are obfuscated
+observability.Info("transaction info", 
+	observability.NewStringField("note", "Client CPF is 123.456.789-00"),
+)
+// Serializes as: {"level":"INFO","msg":"transaction info","note":"Client CPF is [MASKED_PATTERN]"}
+```
+
+You can also register custom regex patterns:
+
+```go
+observability.RegisterPIIPattern("cnpj", regexp.MustCompile(`\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}`))
 ```
 
 ### 6. Structured Error Stack Trace Capture

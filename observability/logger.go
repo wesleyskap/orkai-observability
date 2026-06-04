@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -26,8 +27,13 @@ var levelMap = map[string]int32{
 }
 
 var (
-	sensitiveMu   sync.RWMutex
-	sensitiveKeys = []string{"password", "token", "secret", "cvv", "card", "cpf", "email"}
+	sensitiveMu      sync.RWMutex
+	sensitiveKeys    = []string{"password", "token", "secret", "cvv", "card", "cpf", "email"}
+	sensitiveRegexes = map[string]*regexp.Regexp{
+		"cpf":    regexp.MustCompile(`\d{3}\.\d{3}\.\d{3}-\d{2}`),
+		"jwt":    regexp.MustCompile(`eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*`),
+		"credit": regexp.MustCompile(`\b(?:\d[ -]*?){13,16}\b`),
+	}
 )
 
 // AddSensitiveKeys appends new patterns to the global PII log masking list.
@@ -41,6 +47,27 @@ func AddSensitiveKeys(keys ...string) {
 	for _, key := range keys {
 		sensitiveKeys = append(sensitiveKeys, strings.ToLower(key))
 	}
+}
+
+// RegisterPIIPattern registers a new regex pattern for PII sanitization.
+//
+// Usage example:
+//
+//	observability.RegisterPIIPattern("cnpj", regexp.MustCompile(`\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}`))
+func RegisterPIIPattern(name string, pattern *regexp.Regexp) {
+	sensitiveMu.Lock()
+	defer sensitiveMu.Unlock()
+	sensitiveRegexes[name] = pattern
+}
+
+func maskPII(val string) string {
+	sensitiveMu.RLock()
+	defer sensitiveMu.RUnlock()
+	res := val
+	for _, re := range sensitiveRegexes {
+		res = re.ReplaceAllString(res, "[MASKED_PATTERN]")
+	}
+	return res
 }
 
 // Logger defines the interface for structured logging.
@@ -308,7 +335,8 @@ func writeFields(buf *bytes.Buffer, fields []Field) {
 		if f.IsInt {
 			buf.WriteString(strconv.FormatInt(f.IntValue, 10))
 		} else {
-			buf.WriteString(`"` + f.StrValue + `"`)
+			masked := maskPII(f.StrValue)
+			buf.WriteString(`"` + masked + `"`)
 		}
 	}
 }

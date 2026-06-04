@@ -44,6 +44,9 @@ type Config struct {
 	LogFileMaxBackups       int
 	EnableSlowQueryAlert    bool
 	SlowQueryThreshold      time.Duration
+	PayloadLoggingSample    float64
+	MaxPayloadLogSizeBytes  int
+	EnablePayloadLogging    bool
 }
 
 // ValidateConfig verifies that the configuration fields are not empty.
