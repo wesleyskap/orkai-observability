@@ -16,11 +16,12 @@ import (
 //	mux.HandleFunc("/metrics", observability.MetricsHTTPHandler())
 func MetricsHTTPHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		if globalInstance == nil {
+		inst := getGlobal()
+		if inst == nil {
 			http.Error(w, "observability package is not initialized", http.StatusServiceUnavailable)
 			return
 		}
-		summary := globalInstance.Metrics.GetSummary()
+		summary := inst.Metrics.GetSummary()
 		if requestsPrometheus(req) {
 			writePrometheusMetrics(w, summary)
 			return
