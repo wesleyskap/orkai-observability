@@ -227,3 +227,72 @@ func TestJSONLoggerPIIRegexMasking(t *testing.T) {
 		t.Errorf("expected [MASKED_PATTERN] in output, got: %s", output)
 	}
 }
+
+// TestJSONLoggerDevConsoleColor verifies color console log formatting for dev environment.
+func TestJSONLoggerDevConsoleColor(t *testing.T) {
+	fw := &FakeWriter{}
+	logger := observability.NewJSONLogger(fw, "test-service")
+	logger.SetEnvironment("dev")
+
+	logger.Info("dev message info", observability.NewStringField("key", "value"))
+	output := fw.Buf.String()
+
+	if !strings.Contains(output, "\033[32m[INFO]\033[0m") {
+		t.Errorf("expected ANSI info green color, got %q", output)
+	}
+	if !strings.Contains(output, "dev message info") {
+		t.Errorf("expected message, got %q", output)
+	}
+	if !strings.Contains(output, "key=value") {
+		t.Errorf("expected formatted field key=value, got %q", output)
+	}
+}
+
+// TestJSONLoggerInternalTelemetry asserts that log rate limiting records internal telemetry metrics.
+func TestJSONLoggerInternalTelemetry(t *testing.T) {
+	cfg := observability.Config{
+		ServiceName:     "telemetry-test",
+		Environment:     "production",
+		EnableRateLimit: true,
+		RateLimitBurst:  1,
+		RateLimitRate:   1,
+	}
+	_ = observability.Init(cfg)
+
+	for i := 0; i < 5; i++ {
+		observability.Info("spam")
+	}
+
+	summary := observability.GetSummary()
+	droppedCount := summary.Counters["observability_dropped_logs_total"]
+	if droppedCount < 2 {
+		t.Errorf("expected observability_dropped_logs_total >= 2, got %d", droppedCount)
+	}
+}
+
+// TestJSONLoggerAsyncSaturationTelemetry asserts that full async buffer records internal telemetry metrics.
+func TestJSONLoggerAsyncSaturationTelemetry(t *testing.T) {
+	fw := &FakeWriter{}
+	logger := observability.NewJSONLogger(fw, "saturation-test")
+	logger.ConfigureAsync(true, 1)
+
+	cfg := observability.Config{
+		ServiceName:         "saturation-test",
+		Environment:         "production",
+		EnableAsyncLog:      true,
+		AsyncLogChannelSize: 1,
+	}
+	_ = observability.Init(cfg)
+	observability.SetLogger(logger)
+
+	for i := 0; i < 10; i++ {
+		observability.Info("spam log")
+	}
+	_ = logger.Close()
+
+	summary := observability.GetSummary()
+	ratio := summary.Gauges["observability_async_buffer_saturation_ratio"]
+	if ratio < 0 || ratio > 1 {
+		t.Errorf("expected saturation ratio between 0 and 1, got %g", ratio)
+	}
+}

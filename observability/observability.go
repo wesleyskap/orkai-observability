@@ -57,6 +57,7 @@ func initLogger(cfg Config) (Logger, error) {
 		writer = w
 	}
 	logger := NewJSONLogger(writer, cfg.ServiceName)
+	logger.SetEnvironment(cfg.Environment)
 	logger.SetLevel(cfg.LogLevel)
 	logger.SetTraceProvider(GetActiveTraceID)
 	if cfg.EnableRateLimit {
