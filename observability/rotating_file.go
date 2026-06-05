@@ -50,10 +50,14 @@ func (w *RotatingFileWriter) Write(p []byte) (int, error) {
 	writeLen := int64(len(p))
 	if w.size+writeLen > w.maxSize {
 		if err := w.rotate(); err != nil {
+			Counter("observability_internal_errors_total")
 			return 0, err
 		}
 	}
 	n, err := w.file.Write(p)
+	if err != nil {
+		Counter("observability_internal_errors_total")
+	}
 	w.size += int64(n)
 	return n, err
 }

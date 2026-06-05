@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 const (
@@ -95,6 +96,7 @@ type Logger interface {
 type JSONLogger struct {
 	writer        io.Writer
 	service       string
+	environment   string
 	traceProvider func() string
 	rateLimiter   *LogRateLimiter
 	level         int32
@@ -116,6 +118,15 @@ func NewJSONLogger(w io.Writer, service string) *JSONLogger {
 		level:   LevelInfo,
 	}
 	return logger
+}
+
+// SetEnvironment configures the application environment name.
+//
+// Usage example:
+//
+//	logger.SetEnvironment("dev")
+func (l *JSONLogger) SetEnvironment(env string) {
+	l.environment = env
 }
 
 // SetRateLimiter configures rate limiting on the JSONLogger.
@@ -221,13 +232,19 @@ func (l *JSONLogger) Error(msg string, err error, fields ...Field) {
 func (l *JSONLogger) writeEntry(level string, traceID string, msg string, fields []Field) {
 	if l.rateLimiter != nil {
 		if allow, throttled := l.rateLimiter.Allow(); !allow {
+			Counter("observability_dropped_logs_total")
 			return
 		} else if throttled {
 			fields = append(fields, NewStringField("log_burst_throttled", "true"))
 		}
 	}
-	jsonStr := formatJSON(level, l.service, traceID, msg, fields)
-	l.deliverLog(jsonStr)
+	var logStr string
+	if l.environment == "dev" {
+		logStr = formatDevConsole(level, traceID, msg, fields)
+	} else {
+		logStr = formatJSON(level, l.service, traceID, msg, fields)
+	}
+	l.deliverLog(logStr)
 }
 
 // ConfigureAsync initializes the background worker and channel for asynchronous logging.
@@ -281,9 +298,12 @@ func (l *JSONLogger) flushChan() {
 
 func (l *JSONLogger) deliverLog(jsonStr string) {
 	if l.asyncEnabled {
+		ratio := float64(len(l.asyncChan)) / float64(cap(l.asyncChan))
+		Gauge("observability_async_buffer_saturation_ratio", ratio)
 		select {
 		case l.asyncChan <- jsonStr:
 		default:
+			Counter("observability_dropped_logs_total")
 			_, _ = l.writer.Write([]byte(jsonStr))
 		}
 		return
@@ -436,4 +456,67 @@ func appendBaggageFields(ctx context.Context, fields []Field) []Field {
 		fields = append(fields, NewStringField("baggage."+k, v))
 	}
 	return fields
+}
+
+func getColorForLevel(level string) (string, string) {
+	reset := "\033[0m"
+	switch level {
+	case "DEBUG":
+		return "\033[90m", reset
+	case "INFO":
+		return "\033[32m", reset
+	case "WARN":
+		return "\033[33m", reset
+	case "ERROR":
+		return "\033[31m", reset
+	}
+	return reset, reset
+}
+
+func formatTraceID(traceID string) string {
+	if traceID == "" {
+		return ""
+	}
+	shortID := traceID
+	if len(traceID) > 7 {
+		shortID = traceID[:7]
+	}
+	return " \033[36m[trace_id: " + shortID + "]\033[0m"
+}
+
+func formatDevFields(fields []Field) (string, string) {
+	var extra []string
+	var stack string
+	for _, f := range fields {
+		if f.Key == "stack_trace" {
+			stack = f.StrValue
+			continue
+		}
+		val := getFieldValueStr(f)
+		extra = append(extra, f.Key+"="+val)
+	}
+	fieldsPart := ""
+	if len(extra) > 0 {
+		fieldsPart = " | " + strings.Join(extra, " ")
+	}
+	return fieldsPart, stack
+}
+
+func getFieldValueStr(f Field) string {
+	if f.IsInt {
+		return strconv.FormatInt(f.IntValue, 10)
+	}
+	return maskPII(f.StrValue)
+}
+
+func formatDevConsole(level string, traceID string, msg string, fields []Field) string {
+	ts := time.Now().Format("15:04:05")
+	color, reset := getColorForLevel(level)
+	tracePart := formatTraceID(traceID)
+	fieldsPart, stack := formatDevFields(fields)
+	line := ts + " " + color + "[" + level + "]" + reset + tracePart + " " + msg + fieldsPart
+	if stack != "" {
+		line += "\n\t\033[31mStack Trace: " + stack + "\033[0m"
+	}
+	return line + "\n"
 }

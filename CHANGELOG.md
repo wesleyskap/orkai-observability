@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.4.0] - 2026-06-05
+
+### Added
+- **Color Console Log Formatting:** Implemented human-readable, ANSI-colored console formatting for local development (triggered when `Environment == "dev"`). Logs include colored levels, timestamp, short trace ID, and formatted key-value fields.
+- **Internal Observability Telemetry:** Integrated self-monitoring metrics to track package performance: `observability_dropped_logs_total` (tracks logs dropped under rate-limiting/congestion), `observability_async_buffer_saturation_ratio` (gauge of async ring-buffer utilization), and `observability_internal_errors_total` (tracks write/rotation errors).
+
 ## [2.3.0] - 2026-06-04
 
 ### Added

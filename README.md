@@ -91,6 +91,8 @@ sequenceDiagram
 * **Periodic Go Runtime Metrics Collector:** Periodically captures and reports Go runtime diagnostics (goroutine counts, heap allocation/system memory bytes, and cumulative GC cycle runs) to the metrics system in a background loop.
 * **SQL DB Query Tracing Helper:** An easy wrapper around SQL query execution that automatically spans the duration, counts queries, aggregates durations in metric histograms, and handles context trace correlation.
 * **Size-Based Log Rotation File Writer:** A thread-safe, size-bounded `io.WriteCloser` implementation that rotates output log files automatically when size limits are reached and manages a configured backup depth limit.
+* **Color Console Format (dev mode):** Replaces JSON logs with colored, human-readable console entries in local development environments when `Environment == "dev"`.
+* **Internal Observability Telemetry:** Automatically tracks package health metrics like async buffer queue saturation (`observability_async_buffer_saturation_ratio`), rate-limiting drops (`observability_dropped_logs_total`), and internal I/O errors (`observability_internal_errors_total`).
 
 ---
 
