@@ -38,6 +38,7 @@ func (rw *responseWriterWrapper) Write(p []byte) (int, error) {
 			rw.body.Write(p[:rem])
 		}
 	}
+	// codeql[go/reflected-xss] False positive..this is a delegating ResponseWriter wrapper
 	return rw.ResponseWriter.Write(p)
 }
 
