@@ -93,6 +93,7 @@ sequenceDiagram
 * **Size-Based Log Rotation File Writer:** A thread-safe, size-bounded `io.WriteCloser` implementation that rotates output log files automatically when size limits are reached and manages a configured backup depth limit.
 * **Color Console Format (dev mode):** Replaces JSON logs with colored, human-readable console entries in local development environments when `Environment == "dev"`.
 * **Internal Observability Telemetry:** Automatically tracks package health metrics like async buffer queue saturation (`observability_async_buffer_saturation_ratio`), rate-limiting drops (`observability_dropped_logs_total`), and internal I/O errors (`observability_internal_errors_total`).
+* **Native OTLP HTTP/JSON Exporter:** Asynchronously exports captured local spans and logs to any OpenTelemetry collector over HTTP/JSON without requiring heavy external SDK dependencies.
 
 ---
 
@@ -1008,6 +1009,43 @@ func main() {
 	defer writer.Close()
 
 	_, _ = writer.Write([]byte("custom rotating log line\n"))
+}
+```
+
+---
+
+### 19. Native OTLP HTTP/JSON Exporter
+
+Asynchronously exports captured local spans and logs to any OpenTelemetry collector over HTTP/JSON without requiring heavy external SDK dependencies.
+
+Configure OTLP export parameters during application startup:
+
+```go
+package main
+
+import (
+	"context"
+	"time"
+	"github.com/wesleyskap/orkai-observability/observability"
+)
+
+func main() {
+	cfg := observability.Config{
+		ServiceName:    "my-service",
+		Environment:    "production",
+		OTLPEndpoint:   "http://localhost:4318", // OTLP Collector JSON endpoint
+		ExportInterval: 2 * time.Second,         // Batch export every 2s
+		OTLPHeaders: map[string]string{
+			"Authorization": "Bearer my-token",
+		},
+	}
+	_ = observability.Init(cfg)
+	defer observability.Close()
+
+	// Tracing and logging automatically triggers background OTLP exporting!
+	ctx, span := observability.StartSpan(context.Background(), "Task")
+	observability.InfoContext(ctx, "executing business logic")
+	observability.EndSpan(span)
 }
 ```
 

@@ -28,6 +28,7 @@ type GlobalFacade struct {
 var (
 	globalInstance        atomic.Pointer[GlobalFacade]
 	cancelSystemTelemetry context.CancelFunc
+	globalExporter        *OTLPExporter
 )
 
 // Init initializes the global observability facade instance.
@@ -44,6 +45,7 @@ func Init(cfg Config) error {
 	inst := &GlobalFacade{Logger: logger, Metrics: m, Tracer: t, Config: cfg}
 	globalInstance.Store(inst)
 	initSystemTelemetry(cfg)
+	globalExporter = NewOTLPExporter(cfg)
 	return nil
 }
 
@@ -317,6 +319,9 @@ func SetLogger(l Logger) {
 func Close() {
 	if cancelSystemTelemetry != nil {
 		cancelSystemTelemetry()
+	}
+	if globalExporter != nil {
+		globalExporter.Close()
 	}
 	if inst := getGlobal(); inst != nil {
 		if closer, ok := inst.Logger.(interface{ Close() error }); ok {

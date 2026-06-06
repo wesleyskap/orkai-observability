@@ -125,6 +125,9 @@ func (t *LocalTracer) StartTrace(ctx context.Context, name string) (context.Cont
 //	tracer.EndTrace(span)
 func (t *LocalTracer) EndTrace(span Span) {
 	duration := time.Since(span.StartTime)
+	if globalExporter != nil {
+		globalExporter.ExportSpan(span, duration)
+	}
 	line := "[TRACE] End " + span.Name + " duration=" + duration.String() + "\n"
 	_, _ = io.WriteString(t.writer, line)
 	PopActiveTraceID()

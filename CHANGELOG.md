@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.5.0] - 2026-06-06
+
+### Added
+- **Native OTLP HTTP/JSON Exporter:** Added a lightweight, async background OTLP HTTP/JSON exporter for spans (`/v1/traces`) and logs (`/v1/logs`) mapping local telemetry models into standard OpenTelemetry OTLP JSON shapes without heavy external SDK dependencies.
+
 ## [2.4.0] - 2026-06-05
 
 ### Added
