@@ -47,6 +47,9 @@ type Config struct {
 	PayloadLoggingSample    float64
 	MaxPayloadLogSizeBytes  int
 	EnablePayloadLogging    bool
+	OTLPEndpoint            string
+	OTLPHeaders             map[string]string
+	ExportInterval          time.Duration
 }
 
 // ValidateConfig verifies that the configuration fields are not empty.

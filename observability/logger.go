@@ -297,6 +297,9 @@ func (l *JSONLogger) flushChan() {
 }
 
 func (l *JSONLogger) deliverLog(jsonStr string) {
+	if globalExporter != nil {
+		globalExporter.ExportLog(jsonStr)
+	}
 	if l.asyncEnabled {
 		ratio := float64(len(l.asyncChan)) / float64(cap(l.asyncChan))
 		Gauge("observability_async_buffer_saturation_ratio", ratio)
