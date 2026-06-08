@@ -94,6 +94,7 @@ sequenceDiagram
 * **Color Console Format (dev mode):** Replaces JSON logs with colored, human-readable console entries in local development environments when `Environment == "dev"`.
 * **Internal Observability Telemetry:** Automatically tracks package health metrics like async buffer queue saturation (`observability_async_buffer_saturation_ratio`), rate-limiting drops (`observability_dropped_logs_total`), and internal I/O errors (`observability_internal_errors_total`).
 * **Native OTLP HTTP/JSON Exporter:** Asynchronously exports captured local spans and logs to any OpenTelemetry collector over HTTP/JSON without requiring heavy external SDK dependencies.
+* **Auto-Triggered pprof (On-Demand CPU & Heap Profiler):** Automatically triggers standard CPU and Heap profile captures (saved locally to disk) when system resources (goroutines or heap memory) exceed configured limits, managed with automated cooldown buffers to ensure process safety.
 
 ---
 

@@ -29,27 +29,32 @@ type Config struct {
 	ServiceName             string
 	Environment             string
 	LogLevel                string
-	EnableRateLimit         bool
-	RateLimitBurst          int
-	RateLimitRate           int
-	EnableAsyncLog          bool
-	AsyncLogChannelSize     int
-	EnableOTel              bool
+	LogFilePath             string
+	OTLPEndpoint            string
+	PprofOutputDir          string
 	OTelTracerProvider      trace.TracerProvider
 	OTelMeterProvider       metric.MeterProvider
-	EnableSystemTelemetry   bool
-	SystemTelemetryInterval time.Duration
-	LogFilePath             string
-	LogFileMaxSize          int64
-	LogFileMaxBackups       int
-	EnableSlowQueryAlert    bool
-	SlowQueryThreshold      time.Duration
-	PayloadLoggingSample    float64
-	MaxPayloadLogSizeBytes  int
-	EnablePayloadLogging    bool
-	OTLPEndpoint            string
 	OTLPHeaders             map[string]string
+	SystemTelemetryInterval time.Duration
+	SlowQueryThreshold      time.Duration
 	ExportInterval          time.Duration
+	PprofProfileDuration    time.Duration
+	LogFileMaxSize          int64
+	PprofHeapThresholdBytes int64
+	PayloadLoggingSample    float64
+	RateLimitBurst          int
+	RateLimitRate           int
+	AsyncLogChannelSize     int
+	LogFileMaxBackups       int
+	MaxPayloadLogSizeBytes  int
+	PprofGoroutinesLimit    int
+	EnableRateLimit         bool
+	EnableAsyncLog          bool
+	EnableOTel              bool
+	EnableSystemTelemetry   bool
+	EnableSlowQueryAlert    bool
+	EnablePayloadLogging    bool
+	EnableAutoPprof         bool
 }
 
 // ValidateConfig verifies that the configuration fields are not empty.
