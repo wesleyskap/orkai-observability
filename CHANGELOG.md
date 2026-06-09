@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.6.0] - 2026-06-08
+
+### Added
+- **Auto-Triggered pprof (On-Demand CPU & Heap Profiler):** Introduced an automated resource monitoring system that triggers local CPU and Heap profile captures (standard `.pprof` files) when goroutines or heap allocations exceed configured thresholds. Includes built-in cooldown management to prevent performance degradation from consecutive profiling runs.
+
 ## [2.5.0] - 2026-06-06
 
 ### Added

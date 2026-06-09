@@ -30,8 +30,18 @@ func runTelemetryLoop(ctx context.Context, d time.Duration) {
 func collectRuntimeStats() {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
-	Gauge("go_goroutines", float64(runtime.NumGoroutine()))
+	goroutines := runtime.NumGoroutine()
+	Gauge("go_goroutines", float64(goroutines))
 	Gauge("go_mem_heap_alloc_bytes", float64(mem.HeapAlloc))
 	Gauge("go_mem_heap_sys_bytes", float64(mem.HeapSys))
 	Gauge("go_gc_completed_count", float64(mem.NumGC))
+	checkAutoPprof(goroutines, int64(mem.HeapAlloc))
+}
+
+func checkAutoPprof(goroutines int, heapAlloc int64) {
+	inst := getGlobal()
+	if inst == nil || globalProfiler == nil {
+		return
+	}
+	globalProfiler.CheckAndTrigger(inst.Config, goroutines, heapAlloc)
 }

@@ -29,6 +29,7 @@ var (
 	globalInstance        atomic.Pointer[GlobalFacade]
 	cancelSystemTelemetry context.CancelFunc
 	globalExporter        *OTLPExporter
+	globalProfiler        *AutoProfiler
 )
 
 // Init initializes the global observability facade instance.
@@ -46,6 +47,7 @@ func Init(cfg Config) error {
 	globalInstance.Store(inst)
 	initSystemTelemetry(cfg)
 	globalExporter = NewOTLPExporter(cfg)
+	globalProfiler = NewAutoProfiler(OSProfileFileCreator{})
 	return nil
 }
 
